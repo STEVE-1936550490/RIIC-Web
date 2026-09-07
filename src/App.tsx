@@ -235,7 +235,9 @@ function mergeSklandLayout(current: BaseBlueprint, suggestion: BaseBlueprint): B
   };
 }
 
-function WorkbenchAppContent({ children }: { children: ReactNode }) {
+const AdvisorPanel = lazy(() => import("@/components/agent/AdvisorPanel"));
+
+function WorkbenchAppContent({ children, agentEnabled = false }: { children: ReactNode; agentEnabled?: boolean }) {
   const intl = useTranslations();
   const locale = useLocale();
   const pathname = usePathname();
@@ -2090,6 +2092,7 @@ function WorkbenchAppContent({ children }: { children: ReactNode }) {
       >
       <WorkbenchContext.Provider value={workbenchContext}>
         <PrimaryPageTransition pageKey={page}>{children}</PrimaryPageTransition>
+        {agentEnabled && <Suspense fallback={null}><AdvisorPanel plan={scheduleResult} layout={layout} activeShift={activeShift} observed={sklandScheduleSnapshot} accountKey={websiteUserId ?? null} /></Suspense>}
       </WorkbenchContext.Provider>
       </div>
 
@@ -2250,8 +2253,8 @@ function WorkbenchAppContent({ children }: { children: ReactNode }) {
   );
 }
 
-function WorkbenchApp({ children }: { children: ReactNode }) {
-  return <WorkbenchAppContent>{children}</WorkbenchAppContent>;
+function WorkbenchApp({ children, agentEnabled = false }: { children: ReactNode; agentEnabled?: boolean }) {
+  return <WorkbenchAppContent agentEnabled={agentEnabled}>{children}</WorkbenchAppContent>;
 }
 
 export default WorkbenchApp;

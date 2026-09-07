@@ -622,7 +622,7 @@ test("workbench views use five prefetched route entries under one persistent lay
   ].map(readRepoFile));
 
   assert.match(layout, /import WorkbenchApp from "@\/App"/);
-  assert.match(layout, /<WorkbenchApp>\{children\}<\/WorkbenchApp>/);
+  assert.match(layout, /<WorkbenchApp agentEnabled=\{agentFeatureConfig\(\)\.enabled\}>\{children\}<\/WorkbenchApp>/);
   assert.ok(pages.every((page) => !page.includes("dynamic(")));
   assert.ok(loadingPages.every((loadingPage) => loadingPage.includes("RouteSkeleton")));
   assert.doesNotMatch(app, /components\/pages\/(?:InfraCalculator|TrainingAdvice|SkillQuery|AccountStatusCenter|DevelopmentSklandStatusCenter)/);

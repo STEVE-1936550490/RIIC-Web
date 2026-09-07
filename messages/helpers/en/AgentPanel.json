@@ -1,0 +1,14 @@
+{
+  "title": "Infrastructure advisor PoC",
+  "notice": "Read-only test panel. FAKE / TEST is a local deterministic demo, not an OpenAI answer. Business data cannot be sent to external models.",
+  "commands": "Test commands: summary; room trade_1; room trading @0 (zero-based shift); list title; compare leftID rightID. List duplicate titles first, then select explicit IDs.",
+  "question": "Question",
+  "send": "Send",
+  "stop": "Stop",
+  "loading": "Running read-only test…",
+  "stale": "Page context changed. Run again.",
+  "retry": "Retry",
+  "tools": "Tool status",
+  "sources": "Sources",
+  "limitations": "Limitations"
+}
