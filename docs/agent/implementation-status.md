@@ -1,18 +1,23 @@
 # Agent Implementation Status
 
 - Branch: `diy/agent-m0-m3`
-- Base: `cb2b0835cb6f0b7f106236b0c1cd40cd62d055b8` (`upstream/develop`)
-- M0: approved
-- M1.1: completed
-- M1.2 code: completed
-- REAL_OPENAI_SMOKE: pending no API key
-- M2.1: completed
-- Agent tests: PASS
-- TypeScript: PASS
+- Base: `da60c658fa71317687ed94969630fb62f6391167` (`upstream/develop`)
+- Upstream sync date: 2026-09-07 (Asia/Shanghai); merged without rewriting published commits.
+- Sync merge: `8e9ba0c572ef0f4e52971e9c00479a00de0d65e5`
+- M0: approved; M0_REVALIDATION: PASS (all three read-only use cases remain valid)
+- M1.1: completed; revalidation PASS (intent contract unchanged)
+- M1.2 code: completed; revalidation PASS (OpenAI 7.10.0 retained; smoke remains opt-in)
+- REAL_OPENAI_SMOKE: PENDING_NO_API_KEY (not run)
+- M2.1: completed; revalidation PASS (explicit allowlist excludes fallback/debug metadata; summary semantics unchanged)
+- `npm ci`: PASS
+- Agent tests: PASS (31 tests; synthetic fallback/debug exclusion and occupancy checks also passed)
+- TypeScript: PASS (after `npx --no-install next typegen` refreshed stale route types)
 - lint: PASS
-- `npm run check`: PASS
-- SECURITY_AUDIT: BLOCKED_NETWORK
-- BUILD: existing baseline blocker
-  - Turbopack CSS worker cannot bind a port in the sandbox (`EPERM`).
-  - webpack compiles and type-checks, then the existing home-page `setActiveShift` prerender failure stops the build.
+- `npm run check`: PASS (610 tests; full check rerun outside the sandbox)
+- SECURITY_AUDIT: PASS (0 vulnerabilities after network-enabled retry)
+- BUILD: BLOCKED_ENVIRONMENT (Turbopack CSS worker port binding `EPERM` reproduced after retry)
+- `npm run build -- --webpack`: PASS (including prerender and standalone preparation; previous home-page blocker not reproduced)
+- Validation retries: sandbox network/subprocess restrictions required escalated dependency installation, tests, audit, and builds.
+- REAL_USER_CONTEXT_TO_EXTERNAL_MODEL: BLOCKED_PRIVACY
+  - Privacy version `2026-09-06-processing-clarification` does not specify external model providers, transmitted model context, retention/training boundaries, or corresponding model consent. This does not block deterministic M2 tools.
 - Current next task: M2.2 `current_plan.get_room_detail`
