@@ -1,23 +1,27 @@
 # Agent Implementation Status
 
 - Branch: `diy/agent-m0-m3`
-- Base: `da60c658fa71317687ed94969630fb62f6391167` (`upstream/develop`)
-- Upstream sync date: 2026-09-07 (Asia/Shanghai); merged without rewriting published commits.
-- Sync merge: `8e9ba0c572ef0f4e52971e9c00479a00de0d65e5`
-- M0: approved; M0_REVALIDATION: PASS (all three read-only use cases remain valid)
-- M1.1: completed; revalidation PASS (intent contract unchanged)
-- M1.2 code: completed; revalidation PASS (OpenAI 7.10.0 retained; smoke remains opt-in)
-- REAL_OPENAI_SMOKE: PENDING_NO_API_KEY (not run)
-- M2.1: completed; revalidation PASS (explicit allowlist excludes fallback/debug metadata; summary semantics unchanged)
-- `npm ci`: PASS
-- Agent tests: PASS (31 tests; synthetic fallback/debug exclusion and occupancy checks also passed)
-- TypeScript: PASS (after `npx --no-install next typegen` refreshed stale route types)
-- lint: PASS
-- `npm run check`: PASS (610 tests; full check rerun outside the sandbox)
-- SECURITY_AUDIT: PASS (0 vulnerabilities after network-enabled retry)
-- BUILD: BLOCKED_ENVIRONMENT (Turbopack CSS worker port binding `EPERM` reproduced after retry)
-- `npm run build -- --webpack`: PASS (including prerender and standalone preparation; previous home-page blocker not reproduced)
-- Validation retries: sandbox network/subprocess restrictions required escalated dependency installation, tests, audit, and builds.
-- REAL_USER_CONTEXT_TO_EXTERNAL_MODEL: BLOCKED_PRIVACY
+- Base: `5c078dec526826cccbdbea4d752d15ab110df4e5` (`upstream/develop`)
+- Upstream sync date: 2026-09-07 (Asia/Shanghai); merges `8df8ff4`, `f283587` preserve published history. Package conflicts retain upstream and Agent tests; no new dependencies.
+- M0: approved; M0_REVALIDATION: PASS (three read-only use cases unchanged).
+- M1.1: completed; revalidation PASS (intent contract unchanged).
+- M1.2 code: completed; revalidation PASS (OpenAI SDK retained; smoke opt-in).
+- M2.1: completed — `current_plan.get_summary`; allowlist excludes debug, fallback metadata, and upstream drone additions.
+- M2.2: completed — `current_plan.get_room_detail` (`5b0c4ab`); deterministic resolution, zero-based shifts, planned/observed separation, compatible context schema 1.
+- M2.3: completed — `saved_plan.list` (`17e83ec`); injected actor, consent/ownership/retention-scoped reads, minimal metadata.
+- M2.4: completed — `saved_plan.compare` (`8ab3a0e`); both IDs authorized before payload reads, bounded deterministic diffs and explicit not-comparable reasons.
+- M2 status: COMPLETE — four read-only tools; no Tool-level DB access, writes, solver/model calls, Registry, Loop, Agent API, or UI.
+- Shared domain reads avoid the ordinary API's existing prune/decryption/key-rotation maintenance. Tests use synthetic repositories and SQL generation, never real user database contents.
+- Comparison uses reported natural 24-hour production only (excludes drones and estimates); missing metrics are not filled, `durationMs` is not quality, personnel sets ignore skill-selection suffixes.
+- Agent + saved-plan service tests: PASS (143 tests, 0 failures/skips); M2.1 regression, four-tool boundary, authorization, sensitive-key, determinism, and structural-budget checks included.
+- TypeScript: PASS (`npx --no-install tsc --noEmit`).
+- lint: PASS (`npm run lint`, also rerun by check).
+- `npm run check`: PASS after final upstream merge, including upstream email and API/shift contract tests.
+- SECURITY_AUDIT: PASS (`npm run audit:security`; 0 vulnerabilities).
+- WEBPACK_BUILD: PASS (`npm run build -- --webpack`; prerender and standalone preparation included).
+- DEFAULT_TURBOPACK_BUILD: BLOCKED_ENVIRONMENT_EPERM (`globals.css` worker port binding failed again after final merge and outside-sandbox retry; no business-code workaround).
+- `git diff --check`: PASS; `package-lock.json` unchanged from the pre-delivery checkpoint.
+- REAL_OPENAI_SMOKE: PENDING_NO_API_KEY (not run).
+- REAL_USER_CONTEXT_TO_EXTERNAL_MODEL: BLOCKED_PRIVACY.
   - Privacy version `2026-09-06-processing-clarification` does not specify external model providers, transmitted model context, retention/training boundaries, or corresponding model consent. This does not block deterministic M2 tools.
-- Current next task: M2.2 `current_plan.get_room_detail`
+- NEXT: M3 design/review only; Registry / Policy / Loop implementation and real-model testing require separate authorization and a privacy-compatible testing strategy.
