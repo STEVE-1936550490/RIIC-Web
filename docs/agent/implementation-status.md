@@ -15,13 +15,14 @@
 - Comparison uses reported natural 24-hour production only (excludes drones and estimates); missing metrics are not filled, `durationMs` is not quality, personnel sets ignore skill-selection suffixes.
 - M3 status: SAFE_READ_ONLY_POC_COMPLETE — not production-ready; see [architecture and demo limits](m3-read-only-agent-architecture.md).
 - M3.5A CODE_DELIVERY: COMPLETE — explicit Responses-compatible endpoint/model/key, shared SDK transport, runtime protocol validation, private continuation and synthetic acceptance command. [Setup and capability limits](responses-compatible-provider.md).
-- CONFIGURATION_STATUS: MISSING — AGENT_MODEL_PROTOCOL, AGENT_MODEL_BASE_URL, AGENT_MODEL_API_KEY, AGENT_MODEL_ID.
-- REAL_RESPONSES_ENDPOINT_VALIDATION: NOT_RUN_MISSING_CONFIG (0 real model HTTP requests). Responses basic / strict structured output / function tool loop: offline PASS; real endpoint NOT RUN. No vendor/model compatibility claim.
+- CONFIGURATION_STATUS: TEMPORARILY_PROVIDED_FOR_ACCEPTANCE — user supplied configuration for the manual attempts below; persistent deployment configuration is not verified.
+- REAL_RESPONSES_ENDPOINT_VALIDATION: CAPABILITY_INCOMPATIBLE; ROOT_CAUSE: UNRESOLVED. Basic Responses access has not succeeded; later capabilities cannot be evaluated independently.
 - Registry / Policy: complete; exactly the four M2 tools, server-issued session actor, visibility and execute-time checks, unchanged domain authorization.
 - Agent Loop: complete; provider-neutral calls/final answers, hard step/call/time/token/result limits, repeated-call detection, cancellation, code-generated sources and safe ephemeral traces.
-- Model egress: external + user_business_context always blocked; offline Responses function-calling adapter tests only. M1 classifier remains independent and unchanged.
+- Model egress: external + user_business_context always blocked. User-reported synthetic endpoint attempts are recorded below; M1 classifier remains independent and unchanged.
 - Agent API: complete (`GET/POST /api/agent`); server feature flag defaults off, strict request/context validation, session/origin/body/rate boundaries. Fake mode requires server development/test configuration.
 - Agent Panel: complete; right-side Workbench panel, explicit FAKE/TEST mode, Stop/retry/status/source display and stale-context protection. No Agent persistence or business writes.
+- Validation provenance: the test/build/audit results below are prior M3.5A delivery records, not new closeout runs. This closeout only reruns documentation/repository hygiene and diff checks, not those tests or model requests.
 - Agent + saved-plan service tests: PASS (186 tests, 0 failures/skips), including M1/M2 regressions, runtime, egress, API, SDK/HTTP adapter, synthetic acceptance runner and Golden Set.
 - Golden Set: PASS (25 synthetic cases covering all three M0 scenarios and negative boundaries).
 - API tests: PASS (4 grouped M3 cases; 76 existing API contract tests also pass in check).
@@ -37,4 +38,15 @@
 - Historical REAL_OPENAI_SMOKE: PENDING_NO_API_KEY (not run); superseded as this stage's acceptance target, not a requirement for an official OpenAI account/key. Old smoke command only prints migration guidance.
 - REAL_USER_CONTEXT_TO_EXTERNAL_MODEL: BLOCKED_PRIVACY.
   - Privacy version `2026-09-06-processing-clarification` does not specify external model providers, transmitted model context, retention/training boundaries, or corresponding model consent. This does not block deterministic tools or local fake/synthetic PoC validation.
-- NEXT: configure the chosen Responses-compatible endpoint and opt into built-in synthetic acceptance; separately review privacy before any real business egress. No M4 work authorized or implemented.
+
+## Closeout — 2026-09-07
+
+- M0–M3 safe PoC and M3.5A code delivery retain their existing states; CODE_DELIVERY: COMPLETE. Code checkpoint tested in the user-reported attempts: `8461605e70cf19e56eddccc49da459b858db042b`.
+- Evidence provenance: the user manually ran both acceptance attempts on the server and supplied their summaries. The assistant did not execute these attempts; this closeout only archives the summaries, with no raw terminal logs or private endpoint paths.
+- Attempt 1 — endpointId `980cb56ffd1b`: a complete Chat Completions interface address was incorrectly used as Base URL. The current transport appends `/responses`, producing the wrong path. Script count: 4 HTTP attempts; status: CAPABILITY_INCOMPATIBLE. This attempt cannot establish the supplier's Responses support.
+- Attempt 2 — after the user corrected the API root per the earlier instructions: endpointId `3069b2c951c6`; protocol `responses`; requestedModel `ZHIPU/GLM-5.3`; reportedModels `[]`; requests `4`; responsesBasic / strictStructuredOutput / current / saved / functionToolLoop all `FAIL`; usage `unavailable`; status `CAPABILITY_INCOMPATIBLE`.
+- Combined script count: 8 model HTTP request attempts, not 8 successful inference calls. Cost cannot be determined from these summaries; no zero-cost claim is made. Temporary environment variables do not establish persistent deployment readiness.
+- Conclusion: the tested endpoint, supplied model identifier and request shapes did not pass Responses acceptance. REAL_RESPONSES_ENDPOINT_VALIDATION: CAPABILITY_INCOMPATIBLE; ROOT_CAUSE: UNRESOLVED. The current mapping combines HTTP 400/404/405/422, and the supplied summaries omit the actual HTTP status and upstream error code. Basic access is not working, so later structured-output/tool-loop capability cannot be independently judged. This does not establish that MoMA lacks Responses, that GLM lacks Tool Calling, that the key/model ID is valid, or that Agent business tools failed.
+- REAL_USER_CONTEXT_TO_EXTERNAL_MODEL remains BLOCKED_PRIVACY. No source/configuration changes, new adapter, protocol fallback, further model request or M4 work occurred in this closeout.
+- Deferred diagnostic notes (not implemented): consider rejecting complete `/chat/completions` addresses as Responses API roots; retain necessary HTTP status and safe error classification without request/response bodies or credentials so distinct failures remain diagnosable.
+- NEXT: 核对 MoMA 对指定模型实际提供的接口协议和参数契约，明确当前失败属于路由、参数、模型配置还是其他问题；依据证据再决定是否另行授权 Chat Completions adapter。

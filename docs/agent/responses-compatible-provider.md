@@ -47,7 +47,15 @@ These are automatic-selection behavior checks, not forced `tool_choice` claims. 
 
 Responses basic, strict schema and multi-round function calling are separately assessed. Errors distinguish authentication, route/capability incompatibility, rate limit, server/network failure, timeout/abort, incomplete, failed, refusal, malformed output, redirect and budget exhaustion. A 400/404/405/422 reports that the tested request shape/route is incompatible, not proof about all supplier capabilities. Chat Completions-only endpoints are not supported and are never silently used instead.
 
-Current delivery: SDK/HTTP offline tests pass; **real endpoint acceptance is NOT_RUN_MISSING_CONFIG**. No endpoint/model documentation or working configuration was supplied, so no supplier compatibility is claimed. Future PASS applies only to the tested endpoint configuration, model and request shapes at that time; one valid JSON result cannot prove universal server-side strict enforcement.
+Prior code-delivery SDK/HTTP offline tests passed; they were not rerun during the documentation-only closeout. **Real endpoint acceptance is CAPABILITY_INCOMPATIBLE; ROOT_CAUSE is UNRESOLVED.** The user temporarily supplied configuration and manually ran two attempts against code checkpoint `8461605e70cf19e56eddccc49da459b858db042b`; these failures are not NOT_RUN_MISSING_CONFIG. Persistent deployment configuration is unverified. Future PASS applies only to the tested endpoint configuration, model and request shapes at that time; one valid JSON result cannot prove universal server-side strict enforcement.
+
+### Closeout — 2026-09-07
+
+The user supplied both manual-run summaries; the assistant did not execute them. Attempt 1 (`980cb56ffd1b`, 4 HTTP attempts) used a complete Chat Completions URL as Base URL, so the transport appended `/responses` to the wrong path; its CAPABILITY_INCOMPATIBLE result cannot judge supplier Responses support. Attempt 2 (`3069b2c951c6`, 4 attempts) followed correction of the API root and requested `ZHIPU/GLM-5.3` using `responses`: reportedModels was empty, usage unavailable, and responsesBasic / strictStructuredOutput / current / saved / functionToolLoop all reported FAIL, with overall CAPABILITY_INCOMPATIBLE.
+
+The total is 8 HTTP request attempts, not 8 successful inferences; cost is unknown. The actual HTTP status/upstream code is absent from the summaries, while current error mapping groups 400/404/405/422. Basic Responses access has not succeeded, so neither later capabilities nor key/model validity can be established, and this is not proof of a supplier-wide limitation or failed Agent business tools.
+
+Deferred, not fixed here: reject complete `/chat/completions` API addresses in configuration validation; preserve necessary HTTP status and safe error categories without exposing bodies or credentials. This closeout makes no model requests, protocol switch, new adapter or M4 changes. See the single [next diagnostic task](implementation-status.md#closeout--2026-09-07).
 
 ## Continuation and privacy
 
