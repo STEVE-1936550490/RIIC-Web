@@ -72,6 +72,7 @@ test("maps the provider-neutral request to strict Responses API Structured Outpu
     messages,
     structuredOutput: AGENT_INTENT_DECISION_OUTPUT_CONTRACT,
     signal: controller.signal,
+    egress: { classification: "synthetic", localTestApproved: false },
     timeoutMs: 4_000,
     maxOutputTokens: 192,
   });
@@ -110,6 +111,7 @@ test("returns unknown provider output and maps only provider-neutral metadata", 
   const result = await callStructuredAgentIntent({
     provider,
     messages: createAgentIntentMessages("看看贸易站 1 的情况"),
+    egress: { classification: "synthetic", localTestApproved: false },
     timeoutMs: 1_000,
   });
 
@@ -118,7 +120,7 @@ test("returns unknown provider output and maps only provider-neutral metadata", 
   assert.equal("model" in result.decision, false);
   assert.equal("usage" in result.decision, false);
   assert.deepEqual(result.metadata, {
-    provider: "openai",
+    provider: "responses_compatible",
     model: "gpt-test-response",
     providerRequestId: "req_openai_123",
     usage: { inputTokens: 11, outputTokens: 13, totalTokens: 24 },
@@ -143,6 +145,7 @@ test("propagates the model-client AbortSignal to the OpenAI request", async () =
   const call = callStructuredAgentIntent({
     provider,
     messages: createAgentIntentMessages("解释一下当前排班方案"),
+    egress: { classification: "synthetic", localTestApproved: false },
     timeoutMs: 1_000,
     signal: controller.signal,
   });
@@ -175,6 +178,7 @@ test("keeps the shared timeout code while aborting the in-flight OpenAI request"
     callStructuredAgentIntent({
       provider,
       messages: createAgentIntentMessages("解释一下当前排班方案"),
+      egress: { classification: "synthetic", localTestApproved: false },
       timeoutMs: 20,
     }),
     (error: unknown) => {
@@ -202,6 +206,7 @@ test("normalizes authentication and rate-limit failures without exposing SDK det
         callStructuredAgentIntent({
           provider,
           messages: createAgentIntentMessages("解释一下当前排班方案"),
+          egress: { classification: "synthetic", localTestApproved: false },
           timeoutMs: 1_000,
         }),
         (error: unknown) => {
@@ -227,6 +232,7 @@ test("leaves malformed JSON for the shared local invalid-output boundary", async
     callStructuredAgentIntent({
       provider,
       messages: createAgentIntentMessages("解释一下当前排班方案"),
+      egress: { classification: "synthetic", localTestApproved: false },
       timeoutMs: 1_000,
     }),
     (error: unknown) => {

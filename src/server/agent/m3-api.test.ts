@@ -40,6 +40,9 @@ test("API never lets browser classify synthetic or enable fake; blocked route ca
     provider: () => { constructed = true; throw new Error(); }, services: () => { constructed = true; throw new Error(); } });
   const body = await response.json(); assert.equal(body.data.error, "AGENT_MODEL_EGRESS_BLOCKED"); assert.equal(constructed, false);
   const injection = await handleAgentRequest(request({ message: "summary", context: null, classification: "synthetic" }), deps()); assert.equal(injection.status, 400);
+  for (const field of ["baseURL", "model", "apiKey", "synthetic", "skipPrivacy"]) {
+    assert.equal((await handleAgentRequest(request({ message: "summary", context: null, [field]: "synthetic-value" }), deps())).status, 400);
+  }
 });
 test("API abort reaches Loop and prevents model execution", async () => {
   const abort = new AbortController(); abort.abort(); let called = false;

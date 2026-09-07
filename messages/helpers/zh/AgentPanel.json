@@ -1,6 +1,6 @@
 {
   "title": "基建顾问 PoC",
-  "notice": "只读测试面板。FAKE / TEST 为本地确定性演示，不是 OpenAI 回答。真实业务数据禁止发送到外部模型。",
+  "notice": "只读测试面板。FAKE / TEST 为本地确定性演示，不是模型生成的回答。真实业务数据禁止发送到外部模型。",
   "commands": "测试命令：summary；room trade_1；room 贸易站 @0（0-based 班次）；list 标题；compare 左ID 右ID。同名方案请先 list，再明确 ID。",
   "question": "问题",
   "send": "发送",

@@ -21,6 +21,7 @@
     "test:agent:golden": "node --test --experimental-strip-types src/server/agent/golden-set.test.ts",
     "test:e2e:agent": "playwright test --config=playwright.agent.config.ts",
     "smoke:agent:openai": "node --experimental-strip-types scripts/openai-agent-smoke.mts",
+    "smoke:agent:responses": "node --experimental-strip-types scripts/responses-agent-smoke.mts",
     "test:api-contract": "node --test --experimental-strip-types src/server/admin-record-dto.test.ts src/server/admin-records-api.test.ts src/server/skill-annotations-api.test.ts src/solver-metrics.test.ts src/server/api-contract.test.ts src/server/auth/admin-dto.test.ts src/server/auth/config.test.ts src/server/auth/native-route-policy.test.ts src/server/auth/session-cookie-cleanup.test.ts src/server/feedback-record.test.ts src/server/plan-access.test.ts src/server/public-plan.test.ts src/server/drone-production.test.ts src/server/telemetry.test.ts",
     "test:auth-integration": "node --test --experimental-strip-types --import ./scripts/register-hooks.mjs src/server/auth/postgres.integration.test.mjs src/server/business-data.integration.test.mjs src/server/release-notes.integration.test.mjs",
     "test:shift-comparison": "node --test --experimental-strip-types src/skland.test.ts src/solver-diagnostic.test.ts src/schedule-portrait-preload.test.ts",

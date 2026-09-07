@@ -23,6 +23,8 @@ export type AgentModelMetadata = {
 };
 
 export type AgentModelRequest = {
+  /** Server-owned; omitted means business context, never synthetic. */
+  egress?: import("./egress-policy.ts").EgressContext;
   messages: readonly AgentModelMessage[];
   structuredOutput: AgentStructuredOutputContract;
   signal: AbortSignal;

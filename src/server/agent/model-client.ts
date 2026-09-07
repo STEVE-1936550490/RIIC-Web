@@ -42,6 +42,7 @@ export class AgentModelError extends Error {
 }
 
 export type CallStructuredAgentIntentInput = {
+  egress?: import("./egress-policy.ts").EgressContext;
   provider: AgentModelProvider;
   messages: readonly AgentModelMessage[];
   timeoutMs: number;
@@ -62,6 +63,7 @@ export async function callStructuredAgentIntent({
   timeoutMs,
   maxOutputTokens,
   signal,
+  egress,
 }: CallStructuredAgentIntentInput): Promise<StructuredAgentIntentResult> {
   if (signal?.aborted) throw new AgentModelError("AGENT_MODEL_ABORTED");
 
@@ -90,6 +92,7 @@ export async function callStructuredAgentIntent({
     const providerResult = await Promise.race<AgentModelProviderResult>([
       Promise.resolve().then(() => provider.generateStructuredOutput({
         messages,
+        egress,
         structuredOutput: AGENT_INTENT_DECISION_OUTPUT_CONTRACT,
         signal: providerController.signal,
         timeoutMs,

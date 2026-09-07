@@ -58,9 +58,10 @@ export async function runReadOnlyAgent(input: {
       // Includes the user message and all previous observations, not just the initial context.
       assertModelEgress(input.provider.kind, input.egress);
       let response;
-      try { response = await bounded((providerSignal) => input.provider.next({ message, tools: visibleTools(context), observations: structuredClone(observations), signal: providerSignal, egress: input.egress }), signal, remaining(), "AGENT_RUN_TIMEOUT"); }
+      try { response = await bounded((providerSignal) => input.provider.next({ runId: result.runId, message, tools: visibleTools(context), observations: structuredClone(observations), signal: providerSignal, egress: input.egress }), signal, remaining(), "AGENT_RUN_TIMEOUT"); }
       catch (error) { if (error instanceof AgentRunError) throw error; throw new AgentRunError("AGENT_PROVIDER_ERROR"); }
       remaining();
+      if ((!response.usage || Object.values(response.usage).length < 3) && !result.limitations.includes("PROVIDER_USAGE_UNAVAILABLE")) result.limitations.push("PROVIDER_USAGE_UNAVAILABLE");
       if (response.usage) for (const key of ["inputTokens", "outputTokens", "totalTokens"] as const) {
         const value = response.usage[key] ?? 0;
         if (!Number.isSafeInteger(value) || value < 0) throw new AgentRunError("AGENT_MODEL_INVALID_OUTPUT");

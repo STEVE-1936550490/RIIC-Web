@@ -1,4 +1,7 @@
-import OpenAI from "openai";
+import { assertModelEgress } from "./egress-policy.ts";
+import { AgentRunError } from "./run-contract.ts";
+import { readResponsesConfig, type ResponsesEnvironment, type ResponsesConfig } from "./responses-config.ts";
+import { createResponsesTransport } from "./responses-transport.ts";
 
 import type {
   AgentModelProvider,
@@ -32,13 +35,9 @@ export type OpenAIResponseOptions = {
 
 export type OpenAIResponseEnvelope = {
   outputText: string;
-  model: string;
+  model?: string;
   requestId?: string;
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-  };
+  usage?: import("./model-provider.ts").AgentModelUsage;
 };
 
 export interface OpenAIResponsesTransport {
@@ -48,58 +47,10 @@ export interface OpenAIResponsesTransport {
   ): Promise<OpenAIResponseEnvelope>;
 }
 
-export type OpenAIModelConfigurationErrorCode =
-  | "AGENT_OPENAI_API_KEY_MISSING"
-  | "AGENT_OPENAI_MODEL_MISSING";
-
-export class OpenAIModelConfigurationError extends Error {
-  readonly code: OpenAIModelConfigurationErrorCode;
-
-  constructor(code: OpenAIModelConfigurationErrorCode) {
-    const message = code === "AGENT_OPENAI_API_KEY_MISSING"
-      ? "OPENAI_API_KEY 未配置。"
-      : "AGENT_OPENAI_MODEL 未配置。";
-    super(message);
-    this.name = "OpenAIModelConfigurationError";
-    this.code = code;
-  }
-}
-
 class OpenAIProviderInvocationError extends Error {
   constructor() {
-    super("OpenAI Responses API 调用失败。");
+    super("Responses compatible provider invocation failed.");
     this.name = "OpenAIProviderInvocationError";
-  }
-}
-
-class OpenAISdkResponsesTransport implements OpenAIResponsesTransport {
-  private readonly client: OpenAI;
-
-  constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
-  }
-
-  async create(
-    request: OpenAIResponseRequest,
-    options: OpenAIResponseOptions,
-  ): Promise<OpenAIResponseEnvelope> {
-    const { data, request_id: requestId } = await this.client.responses
-      .create(request, options)
-      .withResponse();
-
-    const envelope: OpenAIResponseEnvelope = {
-      outputText: data.output_text,
-      model: data.model,
-    };
-    if (requestId) envelope.requestId = requestId;
-    if (data.usage) {
-      envelope.usage = {
-        inputTokens: data.usage.input_tokens,
-        outputTokens: data.usage.output_tokens,
-        totalTokens: data.usage.total_tokens,
-      };
-    }
-    return envelope;
   }
 }
 
@@ -110,19 +61,21 @@ export type OpenAIModelProviderOptions = {
 };
 
 export class OpenAIModelProvider implements AgentModelProvider {
+  readonly kind = "external";
   private readonly model: string;
   private readonly transport: OpenAIResponsesTransport;
   private readonly now: () => number;
 
   constructor({ model, transport, now = performance.now.bind(performance) }: OpenAIModelProviderOptions) {
     const normalizedModel = model.trim();
-    if (!normalizedModel) throw new OpenAIModelConfigurationError("AGENT_OPENAI_MODEL_MISSING");
+    if (!normalizedModel) throw new AgentRunError("AGENT_RESPONSES_CONFIG_MISSING");
     this.model = normalizedModel;
     this.transport = transport;
     this.now = now;
   }
 
   async generateStructuredOutput(request: AgentModelRequest): Promise<AgentModelProviderResult> {
+    assertModelEgress("external", request.egress ?? { classification: "user_business_context", localTestApproved: false });
     request.signal.throwIfAborted();
     const startedAt = this.now();
     const openAIRequest: OpenAIResponseRequest = {
@@ -149,7 +102,8 @@ export class OpenAIModelProvider implements AgentModelProvider {
         timeout: request.timeoutMs,
         maxRetries: 0,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof AgentRunError) throw error;
       throw new OpenAIProviderInvocationError();
     }
 
@@ -161,7 +115,7 @@ export class OpenAIModelProvider implements AgentModelProvider {
     }
 
     const metadata: AgentModelProviderResult["metadata"] = {
-      provider: "openai",
+      provider: "responses_compatible",
       model: response.model,
       latencyMs: Math.max(0, this.now() - startedAt),
     };
@@ -172,25 +126,16 @@ export class OpenAIModelProvider implements AgentModelProvider {
   }
 }
 
-export type OpenAIProviderEnvironment = {
-  OPENAI_API_KEY?: string;
-  AGENT_OPENAI_MODEL?: string;
-};
-
-export function createOpenAIModelProviderFromEnv(
-  environment: OpenAIProviderEnvironment = {
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    AGENT_OPENAI_MODEL: process.env.AGENT_OPENAI_MODEL,
-  },
-): OpenAIModelProvider {
-  const apiKey = environment.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new OpenAIModelConfigurationError("AGENT_OPENAI_API_KEY_MISSING");
-
-  const model = environment.AGENT_OPENAI_MODEL?.trim();
-  if (!model) throw new OpenAIModelConfigurationError("AGENT_OPENAI_MODEL_MISSING");
-
-  return new OpenAIModelProvider({
-    model,
-    transport: new OpenAISdkResponsesTransport(apiKey),
-  });
+export function createResponsesModelProvider(config: ResponsesConfig, transport = createResponsesTransport(config)): OpenAIModelProvider {
+  return new OpenAIModelProvider({ model: config.model, transport: { async create(request, options) {
+    const data = await transport.create(request, options);
+    if (data.output.some((item) => item.type === "function_call")) throw new AgentRunError("AGENT_RESPONSES_INVALID_RESPONSE");
+    const outputText = data.output.flatMap((item) => item.type === "message" ? item.content.flatMap((c) => c.type === "output_text" ? [c.text] : []) : []).join("\n");
+    if (!outputText.trim()) throw new AgentRunError("AGENT_RESPONSES_INVALID_RESPONSE");
+    return { outputText, model: data.model, usage: data.usage };
+  } } });
+}
+/** Historical export; uses only the new explicit compatible configuration. */
+export function createOpenAIModelProviderFromEnv(environment: ResponsesEnvironment = process.env): OpenAIModelProvider {
+  return createResponsesModelProvider(readResponsesConfig(environment));
 }

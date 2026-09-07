@@ -5,7 +5,7 @@ import { AgentRunError, exact, record, text } from "./run-contract.ts";
 export type LoopCall = { id: string; name: string; arguments: unknown };
 export type LoopObservation = { call: LoopCall; result: unknown };
 export type LoopDecision = { type: "calls"; calls: LoopCall[] } | { type: "final"; answer: string };
-export type LoopRequest = { message: string; tools: ReturnType<typeof visibleTools>; observations: LoopObservation[]; signal: AbortSignal; egress: EgressContext };
+export type LoopRequest = { runId?: string; message: string; tools: ReturnType<typeof visibleTools>; observations: LoopObservation[]; signal: AbortSignal; egress: EgressContext };
 export interface LoopProvider { readonly kind: ProviderKind; next(request: LoopRequest): Promise<{ decision: unknown; usage?: AgentModelUsage }> }
 export function parseLoopDecision(value: unknown): LoopDecision {
   const item = record(value);
