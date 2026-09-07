@@ -16,7 +16,7 @@ Runs remain in memory. No Thread/Message/Run persistence or migration. Tool trac
 
 ## Egress and local demo
 
-Every HTTP request is classified as user_business_context, regardless of client claims. External + business context always yields AGENT_MODEL_EGRESS_BLOCKED before provider construction/call—even if OPENAI_API_KEY exists. The loop and external adapter independently enforce egress before every step. No environment switch bypasses this rule.
+Every HTTP request is classified as user_business_context, regardless of client claims. External + business context always yields AGENT_MODEL_EGRESS_BLOCKED before provider construction/call—even if a compatible endpoint/key/model is configured. The loop and external adapter independently enforce egress before every step. M1 also defaults to business classification and rejects external egress unless a server caller explicitly supplies synthetic classification. No environment switch bypasses this rule.
 
 AGENT_FEATURE_ENABLED defaults off. Local fake execution additionally requires AGENT_MODEL_MODE=fake and APP_DEPLOYMENT_ENV=development (or server test environment); production explicitly rejects fake execution. The browser cannot select mode/classification/actor. Only the enabled boolean reaches the rendered Workbench. UI always explains FAKE / TEST and privacy blocking.
 
@@ -27,7 +27,7 @@ The local demo is a deterministic command interpreter, not an intelligent model:
 - `list [title]`; duplicate titles remain separate candidates
 - `compare leftID rightID`; list first to obtain authorized IDs
 
-The Responses adapter implements strict function schemas, canonical-name aliases, call_id/output matching, store=false and private reasoning continuation. It is only available to synthetic opt-in server tests; offline stub tests make no OpenAI requests. Reference: [official function calling guide](https://developers.openai.com/api/docs/guides/function-calling).
+M3.5A unifies M1/M3 behind an explicitly configured Responses-compatible endpoint. The installed openai SDK is transport infrastructure, not supplier identity. No official endpoint/model or legacy credential defaults are used. The adapter implements strict schemas, canonical-name aliases, call_id/output matching and private run-scoped continuation. Encrypted reasoning is an explicit optional capability, disabled by default; unsupported necessary continuation fails closed. `store=false` does not promise third-party zero retention. See [configuration, synthetic acceptance and limitations](responses-compatible-provider.md).
 
 ## Workbench and verification
 
@@ -44,4 +44,4 @@ npm run test:e2e:agent
 
 The dedicated suite starts enabled-development and disabled-production standalone servers on loopback, with screenshots/traces disabled. Default webpack builds compile, but the existing webpack cloud-disabled alias/runtime mismatch can fail at request time (`setActiveShift` on null); this PoC does not change that unrelated bridge. Default Turbopack remains subject to the environment's CSS worker port-binding EPERM.
 
-REAL_OPENAI_SMOKE remains PENDING_NO_API_KEY. REAL_USER_CONTEXT_TO_EXTERNAL_MODEL remains BLOCKED_PRIVACY. Next: M3 real-provider/privacy review only; no M4, writes, solver, RAG, memory or multi-agent work.
+The historical REAL_OPENAI_SMOKE remains PENDING_NO_API_KEY, but is no longer the active acceptance target or a requirement for an official key. REAL_RESPONSES_ENDPOINT_VALIDATION is NOT_RUN_MISSING_CONFIG; the new command defaults offline. REAL_USER_CONTEXT_TO_EXTERNAL_MODEL remains BLOCKED_PRIVACY. Next: configure and accept the chosen endpoint using synthetic fixtures, then separately review privacy; no M4, writes, solver, RAG, memory or multi-agent work.
