@@ -4,12 +4,14 @@ import {
   type DailyProductionUnavailableReason,
 } from "../../daily-production.ts";
 import { MAX_MANUAL_SHIFT_COUNT } from "../../manual-schedule-config.ts";
-import { planToRows } from "../../schedule.ts";
+import { planToRows, type RoomRow } from "../../schedule.ts";
 import type {
   BaseBlueprint,
   PublicPlanData,
+  RoomEfficiency,
   RoomKind,
   RotationProfile,
+  SklandScheduleSnapshot,
 } from "../../types.ts";
 
 export const AGENT_CONTEXT_SCHEMA_VERSION = 1 as const;
@@ -22,6 +24,41 @@ export const MAX_AGENT_CONTEXT_ROOMS = 64;
 export const MAX_AGENT_PLANNED_SLOTS = MAX_AGENT_CONTEXT_ROOMS * 5;
 export const MAX_AGENT_SHIFT_DURATION_HOURS = 168;
 export const MAX_AGENT_OWNED_OPERATOR_COUNT = 1_000;
+export const MAX_AGENT_ROOM_TEXT_LENGTH = 128;
+export const MAX_AGENT_ROOM_ID_LENGTH = 80;
+export const MAX_AGENT_ROOM_OPERATORS = 64;
+
+// Explicit public efficiency allowlist; never copy a RotationRoomLine wholesale.
+export const AGENT_ROOM_EFFICIENCY_FIELDS = [
+  "final_efficiency", "total_efficiency", "order_multiplier", "base_efficiency",
+  "equivalent_efficiency", "global_efficiency", "trade_equivalent_efficiency",
+  "trade_score", "trade_pct", "trade_skill_pct", "trade_display_pct", "trade_gold_pct",
+  "manu_score", "manu_prod_total", "manu_prod_skill", "manu_display_pct", "manu_storage_limit",
+  "power_score", "power_skill_pct", "power_display_pct", "power_charge_speed_pct",
+] as const satisfies readonly (keyof RoomEfficiency)[];
+
+export type SafeRoomEfficiency = Partial<Record<(typeof AGENT_ROOM_EFFICIENCY_FIELDS)[number], number>>;
+export type SafeRoomShift = {
+  // null means unknown; [] is an explicit empty assignment.
+  operators: string[] | null;
+  product: string | null;
+  efficiency: SafeRoomEfficiency | null;
+};
+export type SafeCurrentPlanRoom = {
+  roomId: string;
+  label: string;
+  kind: RoomKind;
+  // Zero-based domain position, or null when a custom ID cannot be associated.
+  index: number | null;
+  layoutOrder: number;
+  level: number;
+  shifts: SafeRoomShift[];
+};
+export type SafeObservedScheduleSnapshot = {
+  source: { type: "skland_schedule" };
+  sampledAt: string;
+  rooms: Array<{ kind: RoomKind; index: number; operators: string[] }>;
+};
 
 export const AGENT_ROOM_KINDS = [
   "control_center",
@@ -113,6 +150,8 @@ export type SafeCurrentPlanSnapshot = {
   shifts: SafeCurrentPlanShift[];
   production: SafeCurrentPlanProduction;
   training: SafeCurrentPlanTraining | null;
+  // Optional complete room catalog. Omission preserves the M2.1 protocol.
+  rooms?: SafeCurrentPlanRoom[];
 };
 
 export type AgentContextSnapshot = {
@@ -121,6 +160,8 @@ export type AgentContextSnapshot = {
   sampledAt: string;
   activeShift: number;
   currentPlan: SafeCurrentPlanSnapshot | null;
+  // Server-selected input, never a tool argument or proof of authorization.
+  observedSchedule?: SafeObservedScheduleSnapshot | null;
 };
 
 export type AgentContextErrorCode =
@@ -161,12 +202,13 @@ function parseRecord(
   value: unknown,
   path: string,
   requiredKeys: readonly string[],
+  optionalKeys: readonly string[] = [],
 ): Record<string, unknown> {
   if (!isRecord(value)) return shapeError(`${path} 必须是对象。`);
   for (const key of requiredKeys) {
     if (!Object.hasOwn(value, key)) return shapeError(`${path} 缺少字段 ${key}。`);
   }
-  const additionalKey = Object.keys(value).find((key) => !requiredKeys.includes(key));
+  const additionalKey = Object.keys(value).find((key) => !requiredKeys.includes(key) && !optionalKeys.includes(key));
   if (additionalKey) return shapeError(`${path} 不允许额外字段 ${additionalKey}。`);
   return value;
 }
@@ -481,6 +523,7 @@ function parseCurrentPlan(value: unknown): SafeCurrentPlanSnapshot | null {
     value,
     path,
     ["diagnosticId", "profile", "roomCounts", "shifts", "production", "training"],
+    ["rooms"],
   );
   return {
     diagnosticId: parseBoundedString(
@@ -493,6 +536,7 @@ function parseCurrentPlan(value: unknown): SafeCurrentPlanSnapshot | null {
     shifts: parseShifts(record.shifts),
     production: parseProduction(record.production),
     training: parseTraining(record.training),
+    ...(Object.hasOwn(record, "rooms") ? { rooms: parsePlanRooms(record.rooms) } : {}),
   };
 }
 
@@ -518,6 +562,7 @@ export function parseAgentContextSnapshot(value: unknown): AgentContextSnapshot 
     value,
     path,
     ["schemaVersion", "contextRevision", "sampledAt", "activeShift", "currentPlan"],
+    ["observedSchedule"],
   );
   if (record.schemaVersion !== AGENT_CONTEXT_SCHEMA_VERSION) {
     return shapeError(`AgentContextSnapshot.schemaVersion 必须为 ${AGENT_CONTEXT_SCHEMA_VERSION}。`);
@@ -533,6 +578,9 @@ export function parseAgentContextSnapshot(value: unknown): AgentContextSnapshot 
       MAX_AGENT_CONTEXT_SHIFTS - 1,
     ),
     currentPlan: parseCurrentPlan(record.currentPlan),
+    ...(Object.hasOwn(record, "observedSchedule")
+      ? { observedSchedule: record.observedSchedule === null ? null : parseObservedSchedule(record.observedSchedule) }
+      : {}),
   };
 }
 
@@ -553,6 +601,9 @@ function validateProduction(production: SafeCurrentPlanProduction): void {
 }
 
 export function validateAgentContextSnapshot(snapshot: AgentContextSnapshot): void {
+  if (snapshot.observedSchedule) {
+    assertUnique(snapshot.observedSchedule.rooms.map((room) => `${room.kind}:${room.index}`), "observed rooms");
+  }
   if (!snapshot.currentPlan) {
     if (snapshot.activeShift !== 0) {
       return contractError("没有 currentPlan 时 activeShift 必须为 0。");
@@ -561,6 +612,19 @@ export function validateAgentContextSnapshot(snapshot: AgentContextSnapshot): vo
   }
 
   const plan = snapshot.currentPlan;
+  if (plan.rooms) {
+    assertUnique(plan.rooms.map((room) => room.roomId), "roomId");
+    assertUnique(plan.rooms.map((room) => room.layoutOrder), "layoutOrder");
+    assertUnique(plan.rooms.filter((room) => room.index !== null).map((room) => `${room.kind}:${room.index}`), "room kind/index");
+    for (const kind of AGENT_ROOM_KINDS) {
+      if (plan.rooms.filter((room) => room.kind === kind).length !== (plan.roomCounts.find((room) => room.kind === kind)?.count ?? 0)) {
+        return contractError("rooms 必须与 roomCounts 的完整房间目录一致。");
+      }
+    }
+    if (plan.rooms.some((room) => room.shifts.length !== plan.shifts.length)) {
+      return contractError("rooms.shifts 必须与方案班次数量一致。");
+    }
+  }
   const roomKinds = plan.roomCounts.map(({ kind }) => kind);
   if (new Set(roomKinds).size !== roomKinds.length) {
     return contractError("roomCounts 不允许重复 RoomKind。");
@@ -670,9 +734,12 @@ function estimatedProduction(
 export function createSafeCurrentPlanSnapshot({
   plan,
   layout,
+  includeRoomDetails = false,
 }: {
   plan: PublicPlanData;
   layout: BaseBlueprint;
+  // Only the injecting caller chooses this projection, not the model.
+  includeRoomDetails?: boolean;
 }): SafeCurrentPlanSnapshot {
   const shiftCount = Math.min(plan.maa.plans.length, plan.rotation.shifts.length);
   const roomCounts = AGENT_ROOM_KINDS.flatMap((kind) => {
@@ -712,5 +779,163 @@ export function createSafeCurrentPlanSnapshot({
           })),
         }
       : null,
+    ...(includeRoomDetails ? { rooms: projectPlanRooms(plan, layout, shiftCount) } : {}),
   };
+}
+
+function assertUnique(values: Array<string | number>, path: string): void {
+  if (new Set(values).size !== values.length) contractError(`${path} 不允许重复。`);
+}
+
+function parseRoomText(value: unknown, path: string): string {
+  const text = parseBoundedString(value, path, MAX_AGENT_ROOM_TEXT_LENGTH).trim();
+  if ([...text].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+    return shapeError(`${path} 不允许控制字符。`);
+  }
+  return text;
+}
+
+function boundedArray(value: unknown, path: string, max: number): unknown[] {
+  if (!Array.isArray(value) || value.length > max) return shapeError(`${path} 必须是不超过 ${max} 项的数组。`);
+  // Array.from makes sparse holes explicit so they cannot evade validation.
+  return Array.from(value);
+}
+
+function parseOperators(value: unknown): string[] {
+  return boundedArray(value, "operators", MAX_AGENT_ROOM_OPERATORS).map((name) => parseRoomText(name, "operator name"));
+}
+
+function parseRoomEfficiency(value: unknown): SafeRoomEfficiency | null {
+  if (value === null) return null;
+  const record = parseRecord(value, "room efficiency", [], AGENT_ROOM_EFFICIENCY_FIELDS);
+  const result: SafeRoomEfficiency = {};
+  for (const key of AGENT_ROOM_EFFICIENCY_FIELDS) {
+    if (Object.hasOwn(record, key)) result[key] = parseFiniteNumber(record[key], key, -1_000_000_000_000, 1_000_000_000_000);
+  }
+  return result;
+}
+
+function parseRoomShift(value: unknown): SafeRoomShift {
+  const record = parseRecord(value, "room shift", ["operators", "product", "efficiency"]);
+  return {
+    operators: record.operators === null ? null : parseOperators(record.operators),
+    product: record.product === null ? null : parseRoomText(record.product, "product"),
+    efficiency: parseRoomEfficiency(record.efficiency),
+  };
+}
+
+function parsePlanRooms(value: unknown): SafeCurrentPlanRoom[] {
+  return boundedArray(value, "rooms", MAX_AGENT_CONTEXT_ROOMS).map((item) => {
+    const room = parseRecord(item, "room", ["roomId", "label", "kind", "index", "layoutOrder", "level", "shifts"]);
+    const roomId = parseBoundedString(room.roomId, "roomId", MAX_AGENT_ROOM_ID_LENGTH);
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(roomId)) return shapeError("roomId 格式无效。");
+    return {
+      roomId,
+      label: parseRoomText(room.label, "room label"),
+      kind: parseRoomKind(room.kind, "room kind"),
+      index: room.index === null ? null : parseInteger(room.index, "room index", 0, MAX_AGENT_CONTEXT_ROOMS - 1),
+      layoutOrder: parseInteger(room.layoutOrder, "layoutOrder", 0, MAX_AGENT_CONTEXT_ROOMS - 1),
+      level: parseInteger(room.level, "room level", 0, 5),
+      shifts: boundedArray(room.shifts, "room shifts", MAX_AGENT_CONTEXT_SHIFTS).map(parseRoomShift),
+    };
+  });
+}
+
+function parseObservedSchedule(value: unknown): SafeObservedScheduleSnapshot {
+  const record = parseRecord(value, "observedSchedule", ["source", "sampledAt", "rooms"]);
+  const source = parseRecord(record.source, "observed source", ["type"]);
+  if (source.type !== "skland_schedule") return shapeError("observed source 无效。");
+  return {
+    source: { type: "skland_schedule" },
+    sampledAt: parseSampledAt(record.sampledAt),
+    rooms: boundedArray(record.rooms, "observed rooms", MAX_AGENT_CONTEXT_ROOMS).map((item) => {
+      const room = parseRecord(item, "observed room", ["kind", "index", "operators"]);
+      const kind = parseRoomKind(room.kind, "observed kind");
+      if (kind === "training_room" || kind === "workshop") return shapeError("观测排班快照不支持此设施。");
+      return {
+        kind,
+        index: parseInteger(room.index, "observed index", 0, MAX_AGENT_CONTEXT_ROOMS - 1),
+        operators: parseOperators(room.operators),
+      };
+    }),
+  };
+}
+
+/** Ask the existing mapper for identity/label only; placeholders are never occupancy data. */
+function canonicalLayoutRow(fallback: RoomRow, layout: BaseBlueprint): RoomRow | undefined {
+  if (fallback.group === "training") return fallback;
+  const suffix = /_([1-9][0-9]*)$/.exec(fallback.roomId);
+  const index = suffix ? Number(suffix[1]) - 1 : 0;
+  if (!Number.isSafeInteger(index) || index >= MAX_AGENT_CONTEXT_ROOMS) return undefined;
+  return planToRows({
+    name: "room identity projection",
+    rooms: { [fallback.group]: Array.from({ length: index + 1 }, () => ({ operators: [] })) },
+  }, undefined, layout).find((row) => row.group === fallback.group && row.roomId === fallback.roomId);
+}
+
+function projectPlanRooms(plan: PublicPlanData, layout: BaseBlueprint, shiftCount: number): SafeCurrentPlanRoom[] {
+  const catalog = planToRows(undefined, undefined, layout);
+  const rowsByShift = Array.from({ length: shiftCount }, (_, index) => (
+    planToRows(plan.maa.plans[index], plan.rotation.shifts[index], layout, plan.trainingRoom?.shifts[index])
+  ));
+  for (const rows of rowsByShift) assertUnique(rows.map((row) => row.roomId), "mapped roomId");
+  const rooms = layout.rooms.map((blueprint, layoutOrder) => {
+    const fallback = catalog.find((row) => row.roomId === blueprint.id);
+    if (!fallback) return contractError("无法映射布局房间。");
+    const mappedRows = rowsByShift.flat().filter((row) => row.roomId === blueprint.id);
+    if (mappedRows.some((row) => row.group !== fallback.group)) return contractError("房间 ID 与类型映射不一致。");
+    const row = mappedRows[0] ?? canonicalLayoutRow(fallback, layout);
+    return {
+      roomId: blueprint.id,
+      label: row?.title ?? blueprint.id,
+      kind: blueprint.kind,
+      index: row?.index ?? null,
+      layoutOrder,
+      level: blueprint.level,
+      shifts: rowsByShift.map((rows, shiftIndex) => {
+        const mapped = rows.find((item) => item.roomId === blueprint.id);
+        const maa = !row || row.group === "training" ? undefined : plan.maa.plans[shiftIndex]?.rooms[row.group]?.[row.index];
+        const training = plan.trainingRoom?.shifts[shiftIndex];
+        const known = row?.group === "training"
+          ? training !== undefined && [training.trainee, training.trainer].every((name) => name === null || typeof name === "string" && name.trim().length > 0)
+          : maa !== undefined && Array.isArray(maa.operators) && !maa.skip && !maa.use_operator_groups && mapped?.autofill !== true
+            && Array.from(maa.operators).every((slot) => slot === null || typeof slot === "string" && slot.trim().length > 0
+              || isRecord(slot) && typeof slot.name === "string" && slot.name.trim().length > 0);
+        const lines = plan.rotation.shifts[shiftIndex]?.scores.room_lines.filter((line) => line.room_id === blueprint.id) ?? [];
+        const efficiency: SafeRoomEfficiency = {};
+        if (lines.length === 1) {
+          for (const key of AGENT_ROOM_EFFICIENCY_FIELDS) {
+            const value = lines[0][key];
+            if (value !== undefined) efficiency[key] = value;
+          }
+        }
+        return {
+          operators: known && mapped ? mapped.operatorSlots.map((slot) => slot.label) : null,
+          product: mapped?.product ?? null,
+          // Use public source values, not presentation-derived Lancet efficiency.
+          efficiency: Object.keys(efficiency).length ? efficiency : null,
+        };
+      }),
+    };
+  });
+  return parsePlanRooms(rooms);
+}
+
+/** Project only an already supplied schedule; never load Skland or read credentials. */
+export function createSafeObservedScheduleSnapshot(schedule: SklandScheduleSnapshot): SafeObservedScheduleSnapshot | null {
+  const storeTs = schedule.infrastructure.storeTs;
+  // storeTs is the upstream observation timestamp (seconds); do not invent Date.now().
+  if (storeTs === null) return null;
+  const timestamp = parseFiniteNumber(storeTs, "observed storeTs", 0, 253_402_300_799) * 1000;
+  const kinds: Record<SklandScheduleSnapshot["infrastructure"]["rooms"][number]["group"], RoomKind> = {
+    control: "control_center", trading: "trade_post", manufacture: "factory", power: "power_plant",
+    dormitory: "dormitory", meeting: "meeting_room", hire: "office",
+  };
+  return parseObservedSchedule({
+    source: { type: "skland_schedule" },
+    sampledAt: new Date(timestamp).toISOString(),
+    rooms: schedule.infrastructure.rooms.map((room) => ({
+      kind: kinds[room.group], index: room.index, operators: room.operators.map((operator) => operator.name),
+    })),
+  });
 }

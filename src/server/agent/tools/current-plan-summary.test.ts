@@ -417,3 +417,24 @@ test("never returns the raw snapshot, debug data, operator names, or sensitive k
     assert.equal(keys.some((key) => key.includes(forbidden)), false, `must not expose ${forbidden}`);
   }
 });
+
+test("optional v1 room and observed projections leave the M2.1 summary unchanged", () => {
+  const plan = syntheticPlan();
+  const legacy = contextFor(plan);
+  const extended: AgentContextSnapshot = {
+    ...legacy,
+    currentPlan: createSafeCurrentPlanSnapshot({ plan, layout, includeRoomDetails: true }),
+    observedSchedule: {
+      source: { type: "skland_schedule" }, sampledAt: "2026-09-01T00:00:00.000Z",
+      rooms: [{ kind: "trade_post", index: 0, operators: ["合成观测干员"] }],
+    },
+  };
+  assert.equal(extended.schemaVersion, 1);
+  assert.equal(legacy.currentPlan && "rooms" in legacy.currentPlan, false);
+  assert.ok(extended.currentPlan?.rooms?.length);
+  assert.deepEqual(
+    executeCurrentPlanSummary({}, { snapshot: extended }),
+    executeCurrentPlanSummary({}, { snapshot: legacy }),
+  );
+  assert.equal(JSON.stringify(executeCurrentPlanSummary({}, { snapshot: extended })).includes("合成观测干员"), false);
+});
