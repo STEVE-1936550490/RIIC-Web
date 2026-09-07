@@ -979,6 +979,9 @@ export type RotationProfile =
 
 export interface PlanApiResponse {
   success: boolean;
+  /** Internal execution metadata; fallback output must not populate a primary-solver cache lease. */
+  fallbackUsed?: boolean;
+  solverAttempts?: Array<{ engine: "primary" | "fallback"; status: "success" | "failed"; durationMs: number; solver?: SolverObservation; error?: string }>;
   startedAt?: string;
   durationMs?: number;
   /** Time reported by the solver process itself, excluding transport and artifact I/O. */
@@ -1039,7 +1042,9 @@ export type AppErrorCode =
   | "AIC-DATA-8001"
   | "AIC-DATA-8002"
   | "AIC-DATA-8003"
-  | "AIC-DATA-8004";
+  | "AIC-DATA-8004"
+  | "AIC-RELEASE-9001"
+  | "AIC-RELEASE-9002";
 
 export interface ApiFieldError {
   path: string;
@@ -1259,6 +1264,34 @@ export interface AdminSessionData {
 
 export interface AdminSessionsData {
   sessions: AdminSessionData[];
+}
+
+export interface SkillAnnotationData {
+  id: string;
+  operatorId: string;
+  skillId: string;
+  note: string;
+  updatedAt: string;
+}
+
+export interface SkillAnnotationListData {
+  annotations: SkillAnnotationData[];
+}
+
+export interface AdminSkillAnnotationData extends SkillAnnotationData {
+  createdAt: string;
+}
+
+export interface AdminSkillAnnotationListData {
+  annotations: AdminSkillAnnotationData[];
+}
+
+export interface AdminSkillAnnotationMutationData {
+  annotation: AdminSkillAnnotationData;
+}
+
+export interface AdminSkillAnnotationDeleteData {
+  deleted: true;
 }
 
 export interface AdminUserUpdateData {

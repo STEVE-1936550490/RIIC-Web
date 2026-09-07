@@ -875,7 +875,13 @@ export async function mockApis(
     telemetryBatches?: Array<Array<Record<string, unknown>>>;
   } = {}
 ) {
-  await page.route("**/api/health", (route) => route.fulfill({
+  // Existing feature tests are independent of database-backed release announcements.
+  await page.route("**/api/releases*", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ success: true, data: { environment: "local", releases: [] }, requestId }),
+  }));
+  await page.route("**/api/readiness", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
     headers: { "X-Request-Id": requestId },

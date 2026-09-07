@@ -1,6 +1,15 @@
 "use client";
+import { localize as localize_components_OperatorSkillTooltip } from "../i18n/helpers/components_OperatorSkillTooltip.ts";
 
-import { cloneElement, useEffect, useState, type KeyboardEventHandler, type MouseEventHandler, type ReactElement } from "react";
+import {
+  cloneElement,
+  useEffect,
+  useState,
+  type KeyboardEventHandler,
+  type MouseEventHandler,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RichTextHoverTerms } from "@/components/RichTextInteractive";
@@ -12,7 +21,9 @@ import {
   operatorBuildingSkillList,
   type BuildingSkillPresentation,
 } from "@/operatorPortraits";
-import { demoBuildingSkill, useLanguageDemo } from "@/language-demo";
+import { useLocale } from "next-intl";
+import { localizedBuildingSkill } from "@/i18n/game-data";
+import { useGameCatalog } from "@/i18n/game-data-client";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,6 +35,9 @@ export function OperatorSkillTooltip({
   trigger,
   highlightedSkillIds = [],
   contextLabel,
+  currentElite,
+  currentLevel,
+  header,
   delay,
   disabled,
 }: {
@@ -31,10 +45,15 @@ export function OperatorSkillTooltip({
   trigger: ReactElement;
   highlightedSkillIds?: readonly string[];
   contextLabel?: string;
+  currentElite?: number | null;
+  currentLevel?: number;
+  /** 可选的业务上下文头部；具体内容由调用方负责，避免进入所有 Tooltip 消费页面。 */
+  header?: ReactNode;
   delay?: number;
   disabled?: boolean;
 }) {
-  const { locale } = useLanguageDemo();
+  const locale = useLocale();
+  const gameCatalog = useGameCatalog();
   const [open, setOpen] = useState(false);
   const skills = operatorBuildingSkillList(name);
   useEffect(() => {
@@ -71,12 +90,18 @@ export function OperatorSkillTooltip({
           {contextLabel}
         </span>
       ) : null}
+      {header}
       {skills.map((sourceSkill) => (
         <SkillBlock
           key={sourceSkill.id}
           locale={locale}
-          skill={demoBuildingSkill(sourceSkill.id, locale, sourceSkill) as BuildingSkillPresentation}
+          skill={localizedBuildingSkill(sourceSkill.id, locale, sourceSkill, gameCatalog) as BuildingSkillPresentation}
           highlighted={highlighted.has(sourceSkill.id)}
+          unlocked={currentElite === undefined
+            ? undefined
+            : currentElite !== null
+              && (sourceSkill.elite < currentElite
+                || (sourceSkill.elite === currentElite && sourceSkill.level <= (currentLevel ?? 1)))}
         />
       ))}
     </TooltipContent>
@@ -99,15 +124,41 @@ export function OperatorSkillTooltip({
   );
 }
 
-function SkillBlock({ skill, locale, highlighted }: { skill: BuildingSkillPresentation; locale: "zh" | "en"; highlighted: boolean }) {
+function SkillBlock({
+  skill,
+  locale,
+  highlighted,
+  unlocked,
+}: {
+  skill: BuildingSkillPresentation;
+  locale: "zh" | "en";
+  highlighted: boolean;
+  unlocked?: boolean;
+}) {
   return (
-    <div className={cn("min-w-0", highlighted && "border-l-2 border-[#FFD501] pl-2")}>
+    <div className={cn(
+      "min-w-0 transition-[filter,opacity] duration-200 motion-reduce:transition-none",
+      highlighted && "border-l-2 border-[#FFD501] pl-2",
+      unlocked === false && "grayscale opacity-70",
+    )} data-skill-unlocked={unlocked === undefined ? undefined : String(unlocked)}>
       <span className="flex flex-wrap items-center gap-1.5 font-semibold">
         <img src={skill.icon} alt="" aria-hidden="true" className="size-7 shrink-0 object-contain" />
         <span>{skill.name}</span>
         {highlighted ? (
           <span className="rounded-sm bg-[#FFD501] px-1.5 py-0.5 text-[10px] font-bold text-[#202223]">
-            {locale === "en" ? "THIS TARGET" : "本次目标"}
+            {localize_components_OperatorSkillTooltip.text(locale, "thisTarget")}
+          </span>
+        ) : null}
+        {unlocked !== undefined ? (
+          <span className={cn(
+            "rounded-sm border px-1.5 py-0.5 text-[10px] font-bold",
+            unlocked
+              ? "border-emerald-400/35 bg-emerald-400/15 text-emerald-200"
+              : "border-background/20 bg-background/10 text-background/65",
+          )}>
+            {unlocked
+              ? (localize_components_OperatorSkillTooltip.text(locale, "unlocked"))
+              : (localize_components_OperatorSkillTooltip.text(locale, "locked"))}
           </span>
         ) : null}
       </span>

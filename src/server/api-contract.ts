@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { makeDiagnostic, persistDiagnostic } from "./request-diagnostics.ts";
 
 import { NextResponse } from "next/server.js";
 
@@ -55,6 +56,8 @@ export const ERROR_DEFINITIONS: Record<AppErrorCode, ErrorDefinition> = {
   "AIC-DATA-8002": { status: 503, message: "账号云端数据暂不可用，请继续使用本地模式。", retryable: true },
   "AIC-DATA-8003": { status: 422, message: "云端工作区数据无效，请检查后重试。", retryable: false },
   "AIC-DATA-8004": { status: 404, message: "请求的云端数据不存在或已过期。", retryable: false },
+  "AIC-RELEASE-9001": { status: 409, message: "更新日志已变化或版本号重复，请刷新后重试。", retryable: false },
+  "AIC-RELEASE-9002": { status: 404, message: "当前环境中找不到这条更新日志。", retryable: false },
 };
 
 export class PublicApiError extends Error {
@@ -117,13 +120,17 @@ export function failureResponse(
   requestId: string,
   route: string,
   startedAt: number,
-  fallback: AppErrorCode = "AIC-SYS-5000"
+  fallback: AppErrorCode = "AIC-SYS-5000",
+  request?: Request,
 ): NextResponse<ApiFailure> {
   const known = normalizePublicError(error, fallback);
   const headers: Record<string, string> = { "X-Request-Id": requestId };
   if (known.retryAfter) headers["Retry-After"] = String(known.retryAfter);
 
+  const diagnostic = makeDiagnostic({code:known.code, status:known.status, route, requestId,
+    durationMs:performance.now()-startedAt, error:known, fields:known.fieldErrors, request});
   console.error(JSON.stringify({
+    ...diagnostic,
     level: "error",
     requestId,
     code: known.code,
@@ -131,6 +138,7 @@ export function failureResponse(
     status: known.status,
     durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
   }));
+  persistDiagnostic(diagnostic);
 
   return NextResponse.json(
     {
