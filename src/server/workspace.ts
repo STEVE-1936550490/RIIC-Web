@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { PRIVACY_VERSION, TERMS_VERSION } from "@/legal-policy";
 import { assertOperbox } from "@/operbox";
@@ -50,6 +50,7 @@ import {
   type ValidatedWorkspace,
 } from "./workspace-payload";
 import { publicPlanSha256 } from "./plan-result-binding";
+import { readOwnedSavedPlanRows } from "./saved-plan-read-server";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -288,7 +289,7 @@ async function pruneUserHistory(userId: string, now: Date): Promise<void> {
   ));
   const normalPlans = await getDatabase().select({ id: savedPlan.id }).from(savedPlan).where(and(
     eq(savedPlan.userId, userId), eq(savedPlan.pinned, false),
-  )).orderBy(desc(savedPlan.updatedAt));
+  )).orderBy(desc(savedPlan.updatedAt), asc(savedPlan.id));
   if (normalPlans.length > SAVED_PLAN_LIMIT) {
     await getDatabase().delete(savedPlan).where(inArray(savedPlan.id, normalPlans.slice(SAVED_PLAN_LIMIT).map((item) => item.id)));
   }
@@ -528,8 +529,9 @@ function toSavedPlanData(row: typeof savedPlan.$inferSelect, boxMatchesWorkspace
 
 export async function listSavedPlans(userId: string): Promise<SavedPlanListData> {
   await requireAccountDataConsent(userId);
-  await pruneUserHistory(userId, new Date());
-  const rows = await getDatabase().select().from(savedPlan).where(eq(savedPlan.userId, userId)).orderBy(desc(savedPlan.pinned), desc(savedPlan.updatedAt));
+  const now = new Date();
+  await pruneUserHistory(userId, now);
+  const rows = await readOwnedSavedPlanRows(userId, now);
   const [current] = await getDatabase().select({
     operboxSnapshotId: userWorkspace.operboxSnapshotId,
   }).from(userWorkspace).where(eq(userWorkspace.userId, userId)).limit(1);
