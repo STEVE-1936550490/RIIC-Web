@@ -824,7 +824,7 @@ function parseRoomShift(value: unknown): SafeRoomShift {
   };
 }
 
-function parsePlanRooms(value: unknown): SafeCurrentPlanRoom[] {
+export function parsePlanRooms(value: unknown): SafeCurrentPlanRoom[] {
   return boundedArray(value, "rooms", MAX_AGENT_CONTEXT_ROOMS).map((item) => {
     const room = parseRecord(item, "room", ["roomId", "label", "kind", "index", "layoutOrder", "level", "shifts"]);
     const roomId = parseBoundedString(room.roomId, "roomId", MAX_AGENT_ROOM_ID_LENGTH);
@@ -873,7 +873,11 @@ function canonicalLayoutRow(fallback: RoomRow, layout: BaseBlueprint): RoomRow |
   }, undefined, layout).find((row) => row.group === fallback.group && row.roomId === fallback.roomId);
 }
 
-function projectPlanRooms(plan: PublicPlanData, layout: BaseBlueprint, shiftCount: number): SafeCurrentPlanRoom[] {
+export function projectPlanRooms(
+  plan: Pick<PublicPlanData, "maa" | "rotation" | "trainingRoom">,
+  layout: BaseBlueprint,
+  shiftCount: number,
+): SafeCurrentPlanRoom[] {
   const catalog = planToRows(undefined, undefined, layout);
   const rowsByShift = Array.from({ length: shiftCount }, (_, index) => (
     planToRows(plan.maa.plans[index], plan.rotation.shifts[index], layout, plan.trainingRoom?.shifts[index])
