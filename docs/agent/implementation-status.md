@@ -1,8 +1,8 @@
 # Agent Implementation Status
 
 - Branch: `diy/agent-m0-m3`
-- Base: `5c078dec526826cccbdbea4d752d15ab110df4e5` (`upstream/develop`)
-- Upstream sync date: 2026-09-07 (Asia/Shanghai); merges `8df8ff4`, `f283587` preserve published history. Package conflicts retain upstream and Agent tests; no new dependencies.
+- Base: `31b38f7f8e5982bbaea73cb839d3a109f9f1373e` (`upstream/develop`)
+- Upstream sync date: 2026-09-07 (Asia/Shanghai); merge `ff43ccb` preserves published history, with no conflicts. No M3 dependencies added; lockfile changes only reflect upstream's version bump.
 - M0: approved; M0_REVALIDATION: PASS (three read-only use cases unchanged).
 - M1.1: completed; revalidation PASS (intent contract unchanged).
 - M1.2 code: completed; revalidation PASS (OpenAI SDK retained; smoke opt-in).
@@ -10,18 +10,28 @@
 - M2.2: completed — `current_plan.get_room_detail` (`5b0c4ab`); deterministic resolution, zero-based shifts, planned/observed separation, compatible context schema 1.
 - M2.3: completed — `saved_plan.list` (`17e83ec`); injected actor, consent/ownership/retention-scoped reads, minimal metadata.
 - M2.4: completed — `saved_plan.compare` (`8ab3a0e`); both IDs authorized before payload reads, bounded deterministic diffs and explicit not-comparable reasons.
-- M2 status: COMPLETE — four read-only tools; no Tool-level DB access, writes, solver/model calls, Registry, Loop, Agent API, or UI.
+- M2 status: COMPLETE — four read-only tools; no Tool-level DB access, writes, or solver/model calls.
 - Shared domain reads avoid the ordinary API's existing prune/decryption/key-rotation maintenance. Tests use synthetic repositories and SQL generation, never real user database contents.
 - Comparison uses reported natural 24-hour production only (excludes drones and estimates); missing metrics are not filled, `durationMs` is not quality, personnel sets ignore skill-selection suffixes.
-- Agent + saved-plan service tests: PASS (143 tests, 0 failures/skips); M2.1 regression, four-tool boundary, authorization, sensitive-key, determinism, and structural-budget checks included.
+- M3 status: SAFE_READ_ONLY_POC_COMPLETE — not production-ready; see [architecture and demo limits](m3-read-only-agent-architecture.md).
+- Registry / Policy: complete; exactly the four M2 tools, server-issued session actor, visibility and execute-time checks, unchanged domain authorization.
+- Agent Loop: complete; provider-neutral calls/final answers, hard step/call/time/token/result limits, repeated-call detection, cancellation, code-generated sources and safe ephemeral traces.
+- Model egress: external + user_business_context always blocked; offline Responses function-calling adapter tests only. M1 classifier remains independent and unchanged.
+- Agent API: complete (`GET/POST /api/agent`); server feature flag defaults off, strict request/context validation, session/origin/body/rate boundaries. Fake mode requires server development/test configuration.
+- Agent Panel: complete; right-side Workbench panel, explicit FAKE/TEST mode, Stop/retry/status/source display and stale-context protection. No Agent persistence or business writes.
+- Agent + saved-plan service tests: PASS (175 tests, 0 failures/skips), including M1/M2 regressions, runtime, egress, API, offline adapter and Golden Set.
+- Golden Set: PASS (25 synthetic cases covering all three M0 scenarios and negative boundaries).
+- API tests: PASS (4 grouped M3 cases; 76 existing API contract tests also pass in check).
+- Agent E2E: PASS (2 scenarios, 0 skips); enabled panel interactions and disabled-production flag. Synthetic fixtures/mocks only; full fake-provider-to-real-M2 execution is separately tested at the API boundary.
 - TypeScript: PASS (`npx --no-install tsc --noEmit`).
 - lint: PASS (`npm run lint`, also rerun by check).
-- `npm run check`: PASS after final upstream merge, including upstream email and API/shift contract tests.
+- `npm run check`: PASS after M3 implementation, including Agent and existing API/shift contract tests.
 - SECURITY_AUDIT: PASS (`npm run audit:security`; 0 vulnerabilities).
-- WEBPACK_BUILD: PASS (`npm run build -- --webpack`; prerender and standalone preparation included).
-- DEFAULT_TURBOPACK_BUILD: BLOCKED_ENVIRONMENT_EPERM (`globals.css` worker port binding failed again after final merge and outside-sandbox retry; no business-code workaround).
-- `git diff --check`: PASS; `package-lock.json` unchanged from the pre-delivery checkpoint.
+- WEBPACK_BUILD: PASS (`npm run build -- --webpack`, also with `ACCOUNT_CLOUD_SYNC_ENABLED=1`; prerender and standalone preparation included).
+- Browser acceptance uses the existing cloud-enabled test profile. The cloud-disabled webpack bridge can still fail at request time with `setActiveShift` on null; no unrelated business-source workaround was introduced.
+- DEFAULT_TURBOPACK_BUILD: BLOCKED_ENVIRONMENT_EPERM (CSS worker port binding, reproduced on `overlayscrollbars.css` outside the sandbox; no business-code workaround).
+- `git diff --check`: PASS. No new dependencies, real fixtures, secrets, logs or screenshots in M3 commits.
 - REAL_OPENAI_SMOKE: PENDING_NO_API_KEY (not run).
 - REAL_USER_CONTEXT_TO_EXTERNAL_MODEL: BLOCKED_PRIVACY.
-  - Privacy version `2026-09-06-processing-clarification` does not specify external model providers, transmitted model context, retention/training boundaries, or corresponding model consent. This does not block deterministic M2 tools.
-- NEXT: M3 design/review only; Registry / Policy / Loop implementation and real-model testing require separate authorization and a privacy-compatible testing strategy.
+  - Privacy version `2026-09-06-processing-clarification` does not specify external model providers, transmitted model context, retention/training boundaries, or corresponding model consent. This does not block deterministic tools or local fake/synthetic PoC validation.
+- NEXT: M3 real-provider/privacy review only; real-user external-model execution remains blocked. No M4 work authorized or implemented.
