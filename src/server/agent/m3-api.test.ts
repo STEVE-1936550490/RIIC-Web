@@ -49,3 +49,25 @@ test("API abort reaches Loop and prevents model execution", async () => {
   const response = await handleAgentRequest(request(undefined, {}, abort.signal), { ...deps(), provider: () => new ScriptedLoopProvider([async () => { called = true; return final; }]) });
   assert.equal((await response.json()).data.error, "AGENT_ABORTED"); assert.equal(called, false);
 });
+
+test("API deterministic demo executes summary, room and list→actual candidate comparison with sources", async () => {
+  const { LocalDemoProvider } = await import("./fake-loop-provider.ts");
+  const dependencies = { ...deps(), provider: () => new LocalDemoProvider() };
+  const execute = async (message: string) => {
+    const response = await handleAgentRequest(request({ message, context: syntheticExecution().snapshot }), dependencies);
+    assert.equal(response.status, 200); return (await response.json()).data;
+  };
+  const summary = await execute("summary"); assert.equal(summary.status, "ok"); assert.match(summary.answer, /shiftCount: 2/);
+  const room = await execute("room trade_1 @0"); assert.equal(room.status, "ok");
+  assert.match(room.answer, /shiftIndex: 0/); assert.match(room.answer, /planned:.*贸易甲/); assert.match(room.answer, /observed: unavailable/);
+  assert.equal(room.sources[0].contextRevision, "synthetic-rev-1"); assert.equal(room.sources[0].sampledAt, "2026-09-07T00:00:00.000Z");
+  const list = await execute("list same title"); assert.equal(list.status, "ok");
+  assert.match(list.answer, /same title \[left\].*same title \[right\]/); assert.ok(!list.answer.includes("foreign"));
+  const ids = list.sources.map((s: { planId: string }) => s.planId);
+  const compare = await execute(`compare ${ids[0]} ${ids[1]}`); assert.equal(compare.status, "ok");
+  assert.match(compare.answer, /natural24h:/); assert.match(compare.answer, /"left":100,"right":100,"delta":0/);
+  assert.deepEqual(compare.sources.map((s: { planId: string }) => s.planId), ids);
+  const denied = await execute("compare left foreign"); assert.equal(denied.status, "failed"); assert.equal(denied.error, "AGENT_TOOL_FAILURE");
+  assert.equal(denied.sources.length, 0); assert.ok(!denied.answer.includes("hasKnownDifferences"));
+  const missing = await execute("room nonexistent @99"); assert.equal(missing.status, "failed"); assert.equal(missing.sources.length, 0);
+});

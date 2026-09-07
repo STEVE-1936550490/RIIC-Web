@@ -23,14 +23,15 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
   }, [props.plan, props.layout, props.observed]);
   const [open, setOpen] = useState(false); const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false); const [error, setError] = useState<string | null>(null);
+  const [responseMessage, setResponseMessage] = useState<string | null>(null);
   const [response, setResponse] = useState<AgentFinalResult | null>(null);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
-  const stale = response !== null && !isAgentResultCurrent(response, revision);
+  const stale = response !== null && (!isAgentResultCurrent(response, revision) || responseMessage !== message);
   function stop() { controller.current?.abort(); controller.current = null; setPending(false); setError("AGENT_ABORTED"); }
   async function send() {
     controller.current?.abort(); const run = new AbortController(); controller.current = run;
-    setPending(true); setResponse(null); setError(null);
+    setPending(true); setResponse(null); setResponseMessage(message); setError(null);
     try {
       if (!projection) throw new Error("AGENT_INVALID_CONTEXT");
       const context = parseAgentContextSnapshot({ schemaVersion: 1, contextRevision: revision, sampledAt: new Date().toISOString(), activeShift: props.plan ? props.activeShift : 0, ...projection });

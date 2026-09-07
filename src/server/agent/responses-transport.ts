@@ -1,49 +1,23 @@
-import OpenAI from "openai";
+import { createCompatibleClient, safeCompatibleError, type RequestBudget } from "./compatible-transport.ts";
 import type { ResponseCreateParamsNonStreaming, ResponseOutputItem } from "openai/resources/responses/responses";
 import { assertResponsesConfig, type ResponsesConfig } from "./responses-config.ts";
 import { AgentRunError, record } from "./run-contract.ts";
 import type { AgentModelUsage } from "./model-provider.ts";
 
-export function safeResponsesError(error: unknown): AgentRunError {
-  if (error instanceof AgentRunError) return error;
-  if (error instanceof SyntaxError) return new AgentRunError("AGENT_RESPONSES_INVALID_RESPONSE");
-  if (error instanceof TypeError) return new AgentRunError("AGENT_RESPONSES_INVALID_RESPONSE");
-  if (error instanceof OpenAI.APIConnectionError && error.cause instanceof AgentRunError) return error.cause;
-  if (error instanceof OpenAI.APIUserAbortError) return new AgentRunError("AGENT_ABORTED");
-  if (error instanceof OpenAI.APIConnectionTimeoutError) return new AgentRunError("AGENT_MODEL_TIMEOUT");
-  if (error instanceof OpenAI.APIError) {
-    const status = error.status;
-    const code = status === 401 || status === 403 ? "AUTH_FAILED" : status === 404 || status === 405 || status === 400 || status === 422 ? "CAPABILITY_INCOMPATIBLE"
-      : status === 429 ? "RATE_LIMITED" : status && status >= 500 ? "SERVER_ERROR" : "NETWORK_ERROR";
-    return new AgentRunError(`AGENT_RESPONSES_${code}`);
-  }
-  return new AgentRunError("AGENT_RESPONSES_NETWORK_ERROR");
-}
-export type ResponsesBudget = { requests: number; maximum: number };
-/** Sole SDK factory. Explicit null org/project and silent logger prevent SDK environment inheritance. */
+export function safeResponsesError(error: unknown): AgentRunError { return safeCompatibleError(error, "responses"); }
+export type ResponsesBudget = RequestBudget;
 export function createResponsesTransport(config: ResponsesConfig, fetcher: typeof fetch = fetch, budget?: ResponsesBudget) {
   assertResponsesConfig(config);
-  const target = `${config.baseURL}/responses`;
-  const client = new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL, organization: null, project: null, adminAPIKey: null, webhookSecret: null,
-    maxRetries: 0, timeout: 15000, logLevel: "off", logger: { debug() {}, info() {}, warn() {}, error() {} },
-    fetch: async (input, init) => {
-      if (String(input) !== target || init?.method !== "POST") throw new AgentRunError("AGENT_RESPONSES_TARGET_REJECTED");
-      if (budget) { if (!Number.isInteger(budget.maximum) || budget.maximum < 1 || budget.maximum > 12 || budget.requests >= budget.maximum) throw new AgentRunError("AGENT_RESPONSES_REQUEST_BUDGET"); budget.requests++; }
-      // The installed SDK also reads OPENAI_CUSTOM_HEADERS. Never forward inherited headers.
-      const headers = new Headers({ "authorization": `Bearer ${config.apiKey}`, "content-type": "application/json", "accept": "application/json" });
-      const response = await fetcher(input, { ...init, headers, redirect: "manual" });
-      if (response.status >= 300 && response.status < 400) throw new AgentRunError("AGENT_RESPONSES_REDIRECT_REJECTED");
-      if (response.ok && !response.headers.get("content-type")?.toLowerCase().includes("application/json")) throw new AgentRunError("AGENT_RESPONSES_INVALID_RESPONSE");
-      return response;
-    },
-  });
+  const client = createCompatibleClient(config, fetcher, budget);
   return { async create(request: ResponseCreateParamsNonStreaming, options: { signal: AbortSignal; timeout: number; maxRetries: 0 }) {
     try {
       const data = await client.responses.create({ ...request, model: config.model, store: false,
         ...(config.reasoning === "encrypted" ? { include: ["reasoning.encrypted_content"] } : {}) }, { ...options, timeout: Math.min(options.timeout, 15000), maxRetries: 0 });
       const parsed = validateResponsesEnvelope(data, config.reasoning);
       return parsed;
-    } catch (error) { if (options.signal.aborted) throw new AgentRunError("AGENT_ABORTED"); throw safeResponsesError(error); }
+    } catch (error) { if (options.signal.aborted) throw new AgentRunError("AGENT_ABORTED");
+      if (error instanceof AgentRunError && error.code === "AGENT_INVALID_INPUT") throw new AgentRunError("AGENT_RESPONSES_INVALID_RESPONSE");
+      throw safeResponsesError(error); }
   } };
 }
 function boundedString(value: unknown, maximum: number): string {

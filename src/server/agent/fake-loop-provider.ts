@@ -26,10 +26,13 @@ export class LocalDemoProvider implements LoopProvider {
       if (result.status === "ok" && last.call.name === "current_plan.get_summary") facts += `; shiftCount: ${record(result.data).shiftCount}`;
       if (result.status === "ok" && last.call.name === "current_plan.get_room_detail") {
         const data = record(result.data); const planned = record(data.planned); const observed = record(data.observed);
-        facts += `; planned: ${JSON.stringify(planned.operators)}; observed: ${observed.status === "available" ? JSON.stringify(observed.operators) : "unavailable"}`;
+        facts += `; room: ${record(data.room).roomId}; shiftIndex: ${record(data.shift).resolvedShiftIndex}; planned: ${JSON.stringify(planned.operators)}; observed: ${observed.status === "available" ? JSON.stringify(observed.operators) : "unavailable"}`;
       }
       if (result.status === "ok" && last.call.name === "saved_plan.list" && Array.isArray(result.plans)) facts += `; candidates: ${result.plans.map((plan) => { const p = record(plan); return `${p.title} [${p.id}]`; }).join(", ")}`;
-      if (result.status === "ok" && last.call.name === "saved_plan.compare") facts += `; hasKnownDifferences: ${record(result.data).hasKnownDifferences}`;
+      if (result.status === "ok" && last.call.name === "saved_plan.compare") {
+        const data = record(result.data); const metrics = record(data.production).metrics;
+        facts += `; hasKnownDifferences: ${data.hasKnownDifferences}; natural24h: ${JSON.stringify(metrics)}`;
+      }
       return { decision: { type: "final", answer: `FAKE / TEST — ${facts}` } };
     }
     const message = request.message.trim();

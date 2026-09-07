@@ -115,7 +115,7 @@ test("completion/refusal/continuation capability errors and malformed envelopes"
 });
 
 test("HTTP failures are sanitized; redirects, HTML and hidden retries rejected", async () => {
-  for (const [status, suffix] of [[401, "AUTH_FAILED"], [403, "AUTH_FAILED"], [404, "CAPABILITY_INCOMPATIBLE"], [400, "CAPABILITY_INCOMPATIBLE"], [429, "RATE_LIMITED"], [500, "SERVER_ERROR"], [503, "SERVER_ERROR"], [302, "REDIRECT_REJECTED"]] as const) {
+  for (const [status, suffix] of [[401, "AUTH_FAILED"], [403, "AUTH_FAILED"], [404, "ROUTE_INCOMPATIBLE"], [400, "CAPABILITY_INCOMPATIBLE"], [429, "RATE_LIMITED"], [500, "SERVER_ERROR"], [503, "SERVER_ERROR"], [302, "REDIRECT_REJECTED"]] as const) {
     let calls = 0; const transport = createResponsesTransport(readResponsesConfig(env), async () => { calls++; return new Response("secret raw HTML", { status, headers: { location: "https://api.openai.com/v1/responses" } }); });
     await assert.rejects(transport.create({ model: "ignored", input: "synthetic" }, options()), (error: unknown) => {
       assert.equal(record(error).code, `AGENT_RESPONSES_${suffix}`); assert.ok(!String(error).includes("secret")); assert.equal(record(error).cause, undefined); return true;
@@ -146,4 +146,17 @@ test("M1/M3 external egress blocks initial and subsequent business calls before 
   await provider.next(req()); await assert.rejects(provider.next({ ...req(), egress: business }), { code: "AGENT_MODEL_EGRESS_BLOCKED" }); assert.equal(h.requests.length, 1);
   const m1 = createResponsesModelProvider(h.config, h.transport);
   await assert.rejects(m1.generateStructuredOutput({ messages: createAgentIntentMessages("synthetic"), structuredOutput: AGENT_INTENT_DECISION_OUTPUT_CONTRACT, signal: options().signal, timeoutMs: 1000 }), { code: "AGENT_MODEL_EGRESS_BLOCKED" }); assert.equal(h.requests.length, 1);
+});
+
+test("Responses rejects altered pending arguments, original message/tools and consumed history", async () => {
+  for (const mode of ["arguments", "message", "tools", "consumed"]) {
+    const h = harness([response([call()]), response([call("next", "saved_plan__list", '{"query":null}')]), response()]);
+    const provider = createResponsesLoopProvider(h.config, h.transport); const request = req();
+    const first = await provider.next(request); if (first.decision.type !== "calls") throw new Error();
+    const observations = [{ call: first.decision.calls[0], result: { status: "ok" } }];
+    if (mode === "consumed") { await provider.next({ ...request, observations }); observations[0].result.status = "altered"; }
+    if (mode === "arguments") observations[0].call.arguments = { injected: true };
+    await assert.rejects(provider.next({ ...request, observations, ...(mode === "message" ? { message: "changed" } : {}), ...(mode === "tools" ? { tools: [] } : {}) }), { code: "AGENT_RESPONSES_HISTORY_INVALID" });
+    assert.equal(h.requests.length, mode === "consumed" ? 2 : 1);
+  }
 });

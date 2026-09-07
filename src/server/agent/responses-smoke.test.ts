@@ -11,7 +11,7 @@ function fakeHttp(badFacts = false): typeof fetch {
     let output: unknown[];
     const msg = (text: string) => ({ type: "message", id: "m", role: "assistant", status: "completed", content: [{ type: "output_text", text, annotations: [] }] });
     const call = (id: string, name: string, args: unknown) => ({ type: "function_call", id: `item-${id}`, call_id: id, name, arguments: JSON.stringify(args) });
-    if (typeof body.input === "string") output = [msg("SYNTHETIC_RESPONSES_OK")];
+    if (typeof body.input === "string") output = [msg(body.text ? '{"synthetic":true}' : "SYNTHETIC_RESPONSES_OK")];
     else if (body.text) output = [msg(JSON.stringify({ intent: "get_room_detail", roomRef: "贸易站 1", leftPlanRef: null, rightPlanRef: null, missingFields: [], canProceed: true }))];
     else {
       assert.ok(Array.isArray(body.input));
@@ -31,7 +31,7 @@ function fakeHttp(badFacts = false): typeof fetch {
 }
 test("synthetic acceptance runs real M2 tools and authorization through SDK HTTP, not fabricated observations", async () => {
   const summary = await runSyntheticResponsesSmoke(readResponsesConfig(env), fakeHttp());
-  assert.equal(summary.status, "PASS", JSON.stringify(summary)); assert.equal(summary.requests, 7);
+  assert.equal(summary.status, "PASS", JSON.stringify(summary)); assert.equal(summary.requests, 8);
   assert.equal(summary.functionToolLoop, "PASS"); assert.equal(summary.usage, "unavailable");
   assert.deepEqual(summary.capabilities.current.tools?.map((t) => t.name), ["current_plan.get_summary", "current_plan.get_room_detail"]);
   assert.deepEqual(summary.capabilities.saved.tools?.map((t) => t.name), ["saved_plan.list", "saved_plan.compare"]);
