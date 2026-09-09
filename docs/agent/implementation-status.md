@@ -1,5 +1,35 @@
 # Agent Implementation Status
 
+## M3.6-only re-audit — 2026-09-09, latest task scope
+
+This section supersedes earlier **next-task** instructions for this round. Fresh recovery found LOCAL_HEAD = REMOTE_HEAD = `6dff1a5b5f2faf75038e5802e30615ac78ce2760`, branch `diy/agent-m0-m3`, with no staged files and 17 modified + 11 untracked existing M4 candidate files. The older `74ae80e…` reference is historical. The original Chat compatibility/M3.6 checkpoint is already committed; no commit, push or deployment occurred in this re-audit. No reset, pull, merge, rebase, clean, stash or branch switch was performed.
+
+The existing M4 candidate was preserved, not continued or removed. It would be inaccurate to label the whole repository M4 NOT_STARTED: **M4_WORK_THIS_ROUND = NOT_STARTED; M4_STATUS = EXISTING_LOCAL_CANDIDATE_PRESERVED**. Prior M4 results below are historical facts, not new development authorization. The external M3.6 whitelist still contains only the four M0 read tools; preview remains unavailable to external providers.
+
+| State | Result |
+| --- | --- |
+| M3_ENGINEERING_CLOSEOUT / M3_COMPAT_PROVIDER | COMPLETE / COMPLETE |
+| EXTERNAL_EGRESS_ENGINEERING | COMPLETE — release gate established, no Provider approval implied |
+| PROVIDER_PROCESSING_EVIDENCE | INCOMPLETE — seven UNKNOWN facts, no VERIFIED processing fact |
+| PROVIDER_RELEASE_STATUS | BLOCKED_UNVERIFIED_PROCESSING |
+| PRIVACY_POLICY_UPDATE | COMPLETE — `2026-09-08-agent-external-processing`, effective 2026-09-08 |
+| CONSENT_FLOW / PAYLOAD_BOUNDARY / EGRESS_GATE | PASS — offline security and mock UI validation |
+| REAL_BUSINESS_EGRESS_RELEASE / REAL_USER_CONTEXT_TO_EXTERNAL_MODEL | BLOCKED_PROVIDER_POLICY / BLOCKED_PROVIDER_POLICY |
+| REAL_MODEL_VALIDATION | Historical synthetic compatibility only; no new endpoint or business-context validation |
+| OFFLINE_VALIDATION | PASS — Agent 275/275; Golden 31/31; API contract 76/76; TypeScript, full check, i18n/legal, lint and diff |
+| BUILD_VALIDATION | PASS — isolated cloud-enabled webpack and standalone preparation |
+| E2E_VALIDATION | PASS — 6/6 mock browser cases, including consent states and preserved candidate regression |
+| REAL_MODEL_REQUESTS_THIS_ROUND | 0 |
+| COMMIT / PUSH / DEPLOY THIS ROUND | NOT_PERFORMED |
+
+Security review found HIGH 0 / MEDIUM 0 and required no runtime repair. Verified pre-factory/provider-service blocking, session-only consent and exact version binding, per-send revoke checks, strict endpoint/protocol binding, default-off kill switch without bypass, explicit field projection/future-field rejection, run-scoped saved-plan aliases, safe errors/logs, bilingual independent opt-in and no retention/training claim based on `store=false`. Consent is policy-state storage, not a model-callable write tool. Full Box, credentials, raw diagnostics and unclassified fields remain prohibited. Arbitrary free text cannot be certified secret-free; the existing recognizable-secret rejection is not a perfect DLP guarantee.
+
+New executions used the clean offline environment with no production/model configuration. Build and browser tests ran in `/tmp/riic-agent-closeout-qnru23`; all runtime/test source remained unchanged after this build, with only three audit documents updated. Agent/Golden counts include already-existing M4 tests; they are not claims of new M4 work. Consent migration 0016 schema/journal/ownership checks passed, but actual PostgreSQL migration and persistence execution remain unvalidated; deployment readiness is not claimed. No production database was accessed.
+
+Recovery verified all original evidence packages (21/46/36 entries), M3.6 final evidence (86) and the existing M4 candidate evidence (51). All 28 existing candidate hashes matched at recovery. AGENTS.md remains ignored, unmodified and unstaged, SHA-256 `cf10d57585e9de9e0992695560962bb3682e7e0e11893d67f95ffdf4f016335f`. This round changes only this status document, the Data Map scope note and the Provider research supplement; original implementation is preserved. New local evidence is stored outside Git under `/root/riic-web-agent-lab/acceptance-handoffs/2026-09-09-m36-reaudit/`.
+
+Next minimum task: **补足适用于 MoMA API 的官方数据处理证据** — retention, training/improvement use and applicable processing terms first, with monitoring, region, subprocessors and deletion conditions also resolved as required. This does not authorize real model requests, business egress, M4 continuation or publication.
+
 ## M3.6 checkpoint review — 2026-09-09, PHASE A
 
 This is the final engineering checkpoint, including the previously reviewed Chat compatibility fixes. It supersedes earlier current/next labels; historical endpoint reports below remain historical. Recovery freshly verified LOCAL_HEAD = REMOTE_HEAD = `74ae80e967ef88bbc05ecde684488fd815e750e2`. All 53 candidate file hashes and all 1,856 final public source hashes matched the prior handoff. Earlier evidence packages verified 21/46/36 entries; the M3.6 package verified 86. AGENTS.md is unchanged, ignored and excluded.

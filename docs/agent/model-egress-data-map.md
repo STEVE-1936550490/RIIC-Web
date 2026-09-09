@@ -2,6 +2,8 @@
 
 本表追踪当前源码，不把历史 synthetic PASS 当外发授权。所有例子都是 synthetic。
 
+2026-09-09 M3.6 专项复核范围：本表仅批准下列四个 M0 只读工具的外部处理字段。恢复时已经存在的 M4 本地候选予以保留，不在本轮继续开发；其 `plan.preview` 不对 external provider 可见，也不在本表的 observation 白名单中。工程完成不表示当前 MoMA 已可接收表中业务字段。
+
 ## 链路
 
 `AdvisorPanel` 将长度不超过 2000 的问题及白名单 `AgentContextSnapshot` 发往本站 `/api/agent`。Session 只在服务端生成 actor。严格 body/context 校验后，`processing-access` 在构造 external provider 和 saved-plan services 前核对两层批准。未批准的 MoMA 在此停止，模型 HTTP 为 0。
