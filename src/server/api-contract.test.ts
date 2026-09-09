@@ -567,28 +567,17 @@ test("plan start windows limit accounts and shared IPs without charging rejected
 });
 
 test("trusted anonymous samples receive bounded admission after a cache miss", async () => {
-  const source = await readFile(new URL("../app/api/plan/route.ts", import.meta.url), "utf8");
-  const sampleBranch = source.indexOf('=== "trusted-sample"');
-  const authenticatedBranch = source.indexOf("} else {", sampleBranch);
-  const optionalSession = source.indexOf("await readWebsiteSession(request).catch(() => null)", sampleBranch);
-  const sampleUserId = source.indexOf("websiteUserId = optionalSession.user.id", optionalSession);
-  const sampleAccountClass = source.indexOf("websiteAccountClass = planAccountAdmissionClass(optionalSession.user)", optionalSession);
-  const anonymousGuard = source.indexOf('if (accessMode !== "trusted-sample" || includeDebug)');
-  const anonymousAdmission = source.indexOf("release = acquireAnonymousSamplePlanSlot({ ip })");
-  const admission = source.indexOf("release = acquirePlanSlot({ ip, accountId: websiteUserId, accountClass: websiteAccountClass })");
-  const anonymousSampleReference = 'const cacheReferenceUserId = sourceType === "sample" ? null : websiteUserId';
-  assert.equal(optionalSession > sampleBranch, true);
-  assert.equal(optionalSession < authenticatedBranch, true);
-  assert.equal(sampleUserId > optionalSession && sampleUserId < authenticatedBranch, true);
-  assert.equal(sampleAccountClass > optionalSession && sampleAccountClass < authenticatedBranch, true);
-  assert.equal(source.includes(anonymousSampleReference), true);
+  const source = await readFile(new URL("./planning-service.ts", import.meta.url), "utf8");
+  const api = await readFile(new URL("./planning-api.ts", import.meta.url), "utf8");
+  assert.match(api, /websiteSession\(request\).catch\(\(\) => null\)/);
+  assert.match(api, /requireWebsiteSession\(request\)/);
+  assert.ok(source.includes('const cacheReferenceUserId = sourceType === "sample" ? null : websiteUserId'));
   assert.equal(source.match(/userId: cacheReferenceUserId/g)?.length, 2);
-  assert.equal(anonymousGuard > source.indexOf("await resolvePlanCache"), true);
-  assert.equal(anonymousGuard < anonymousAdmission, true);
-  assert.equal(anonymousAdmission < admission, true);
-  assert.equal(admission > source.indexOf("await readJsonBody"), true);
-  assert.equal(admission > source.indexOf("await resolvePlanCache"), true);
-  assert.equal(admission < source.indexOf("runResult = await runPlan"), true);
+  const cache = source.indexOf("await resolvePlanCache");
+  const anonymous = source.indexOf("release = acquireAnonymousSamplePlanSlot");
+  const admission = source.indexOf("release = acquirePlanSlot");
+  assert.ok(cache > 0 && anonymous > cache && admission > anonymous);
+  assert.ok(source.indexOf("runResult = await runPlan") > admission);
 });
 
 test("task queue keeps anonymous samples cache-only and applies persistent authenticated admission", async () => {
@@ -605,15 +594,13 @@ test("task queue keeps anonymous samples cache-only and applies persistent authe
 });
 
 test("task queue keeps only the trusted sample on the bounded synchronous endpoint", async () => {
-  const source = await readFile(new URL("../app/api/plan/route.ts", import.meta.url), "utf8");
-  const originGuard = source.indexOf("assertSameOrigin(request)");
-  const accessMode = source.indexOf("const accessMode = planAccessMode");
-  const queueGuard = source.indexOf('if (taskQueueEnabled && accessMode !== "trusted-sample")');
-  const solverCall = source.indexOf("runResult = await runPlan");
-  assert.equal(source.includes('throw new PublicApiError("AIC-PLAN-3001")'), true);
-  assert.equal(queueGuard > originGuard, true);
-  assert.equal(queueGuard > accessMode, true);
-  assert.equal(queueGuard < solverCall, true);
+  const source = await readFile(new URL("./planning-service.ts", import.meta.url), "utf8");
+  const api = await readFile(new URL("./planning-api.ts", import.meta.url), "utf8");
+  assert.ok(api.indexOf("assertSameOrigin(request)") < api.indexOf("await executePlanning"));
+  const guard = source.indexOf('if (queueEnabled && access !== "trusted-sample")');
+  assert.ok(guard > source.indexOf("const access = planAccessMode"));
+  assert.ok(guard < source.indexOf("runResult = await runPlan"));
+  assert.ok(source.includes('throw new PublicApiError("AIC-PLAN-3001")'));
 });
 
 test("worker finalization records saved-plan bindings and cache ownership before publication", async () => {

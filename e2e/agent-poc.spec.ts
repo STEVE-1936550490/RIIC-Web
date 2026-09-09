@@ -138,3 +138,56 @@ test("processing consent: required, grant, ready, revoke, outdated and provider 
   await expect(panel.getByRole("button", { name: "同意并启用外部模型", exact: true })).toHaveCount(0);
   expect(modelRequests).toBe(1);
 });
+
+test("planning preview running, success, failure, cancel, stale and no apply", async ({ page }) => {
+  await mockApis(page); await mockAnonymousWebsiteSession(page); await seedV4Session(page, planData);
+  let mode: "success" | "failure" | "pending" = "success"; let pending: Route | null = null;
+  function previewResponse(route: Route) {
+    const response = responseFor(route); const context = route.request().postDataJSON().context;
+    response.data.tools = [{ name: "plan.preview", step: 1, status: mode === "failure" ? "unavailable" : "ok", latencyMs: 1, code: null }];
+    response.data.answer = mode === "failure" ? "试算失败" : "FAKE / TEST — 未保存、未应用";
+    response.data.status = mode === "failure" ? "failed" : "ok";
+    response.data.preview = {
+      status: mode === "failure" ? "unavailable" : "ok", semantics: "PREVIEW_ONLY", saved: "NOT_SAVED", applied: "NOT_APPLIED",
+      assumptions: { rotationProfile: "abc_12_6_6", candidates: 1, data: "SYNTHETIC" },
+      baseRevision: context.contextRevision, currentRevision: context.contextRevision,
+      source: { type: "planning_preview", engine: "synthetic_mock_solver", contextRevision: context.contextRevision, sampledAt: context.sampledAt },
+      computedAt: "2026-09-09T00:00:00.000Z", cacheHit: false,
+      summary: mode === "failure" ? null : { shiftCount: 3, lmd: 120 },
+      differences: mode === "failure" ? null : { shiftCount: { current: 2, preview: 3, delta: 1 }, lmd: { current: 100, preview: 120, delta: 20 } },
+      issue: mode === "failure" ? { code: "AGENT_PREVIEW_SOLVER_FAILED" } : null,
+      limitations: ["SYNTHETIC_MOCK_SOLVER_NOT_OPTIMALITY_EVIDENCE"], truncation: { applied: false, omittedCount: 0 },
+    };
+    return response;
+  }
+  await page.route("**/api/agent", async route => {
+    if (mode === "pending") { pending = route; return; }
+    await route.fulfill({ json: previewResponse(route) });
+  });
+  await page.goto("/"); await expect(page.locator('[data-workbench-hydrated="true"]')).toBeVisible();
+  await page.locator("[data-agent-open]").click(); const panel = page.locator("[data-agent-panel]");
+  await panel.getByRole("checkbox", { name: "使用合成试算示例（仅顾问面板）" }).check();
+  await panel.getByLabel("问题", { exact: true }).fill("如果把轮换改成 abc_12_6_6，试算一下。");
+  const storageBefore = await page.evaluate(() => JSON.stringify(localStorage));
+  const send = () => panel.getByRole("button", { name: "发送", exact: true }).click();
+  await send(); const preview = panel.locator("[data-agent-preview]");
+  await expect(preview).toContainText("Preview only"); await expect(preview).toContainText("未保存"); await expect(preview).toContainText("未应用");
+  await expect(preview).toContainText("synthetic_mock_solver"); await expect(preview).toContainText("120"); await expect(preview).toContainText("revision:");
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(storageBefore);
+  mode = "failure"; await send(); await expect(preview).toContainText("试算失败，未生成候选方案");
+  await expect(preview.locator("table")).toHaveCount(0);
+  mode = "pending"; await send(); await expect(panel.getByRole("status")).toContainText("正在计算试算方案");
+  await expect.poll(() => pending !== null).toBe(true);
+  await panel.getByRole("button", { name: "停止", exact: true }).click(); await expect(panel.getByRole("alert")).toContainText("AGENT_ABORTED");
+  if (pending) await (pending as Route).fulfill({ json: previewResponse(pending as Route) }).catch(() => {});
+  await expect(preview).toHaveCount(0);
+  mode = "success"; await send(); await expect(preview).toBeVisible();
+  await panel.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("tab", { name: /第 2 班/ }).first().click();
+  await page.locator("[data-agent-open]").click(); await expect(panel.getByRole("alert")).toContainText("STALE_CONTEXT");
+  await expect(preview).toHaveCount(0);
+  mode = "pending"; pending = null; await send(); await expect.poll(() => pending !== null).toBe(true);
+  await panel.getByRole("button", { name: "Close", exact: true }).click();
+  if (pending) await (pending as Route).fulfill({ json: previewResponse(pending as Route) }).catch(() => {});
+  await page.locator("[data-agent-open]").click(); await expect(preview).toHaveCount(0);
+});

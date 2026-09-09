@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { previewExampleSnapshot } from "@/server/agent/preview-example";
+import { requestedPreview } from "@/server/agent/preview-contract";
 import ProcessingConsentCard from "./ProcessingConsentCard";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -16,7 +18,8 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
   if (version.plan !== props.plan || version.layout !== props.layout || version.activeShift !== props.activeShift || version.observed !== props.observed || version.accountKey !== props.accountKey) {
     setVersion({ ...props, number: version.number + 1 });
   }
-  const revision = `advisor-${id}-${version.number}`;
+  const [previewExampleSelected, setPreviewExampleSelected] = useState(false);
+  const revision = `advisor-${id}-${version.number}-${previewExampleSelected ? "synthetic" : "page"}`;
   const projection = useMemo(() => {
     try { return { currentPlan: props.plan ? createSafeCurrentPlanSnapshot({ plan: props.plan, layout: props.layout, includeRoomDetails: true }) : null,
       observedSchedule: props.observed ? createSafeObservedScheduleSnapshot(props.observed) : null }; }
@@ -40,7 +43,7 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
     setPending(true); setResponse(null); setResponseMessage(message); setError(null);
     try {
       if (!projection) throw new Error("AGENT_INVALID_CONTEXT");
-      const context = parseAgentContextSnapshot({ schemaVersion: 1, contextRevision: revision, sampledAt: new Date().toISOString(), activeShift: props.plan ? props.activeShift : 0, ...projection });
+      const context = parseAgentContextSnapshot({ schemaVersion: 1, contextRevision: revision, sampledAt: new Date().toISOString(), activeShift: previewExampleSelected ? 0 : props.plan ? props.activeShift : 0, ...(previewExampleSelected ? { currentPlan: previewExampleSnapshot() } : projection) });
       validateAgentContextSnapshot(context);
       const res = await fetch("/api/agent", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, context }), signal: run.signal });
@@ -63,18 +66,32 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
         <ProcessingConsentCard key={`${props.accountKey}-${open}-${processingRevision}`} onAccess={onAccess} onRevoke={() => { stop(); setResponse(null); }} />
         <p className="text-xs text-muted-foreground">{t("commands")}</p>
+        <label className="text-sm"><input type="checkbox" checked={previewExampleSelected} onChange={(event) => { stop(); setError(null); setPreviewExampleSelected(event.target.checked); }} /> {t("previewExample")}</label>
+        {previewExampleSelected && <p className="text-xs">{t("previewInstructions")}</p>}
         <label htmlFor={`${id}-message`}>{t("question")}</label>
         <textarea id={`${id}-message`} maxLength={2000} value={message} onChange={(event) => setMessage(event.target.value)} className="min-h-24 rounded border bg-background p-2" />
         <div className="flex gap-2"><Button onClick={() => void send()} disabled={!canSend || pending || !message.trim()}>{t("send")}</Button>
           <Button variant="outline" onClick={stop} disabled={!pending}>{t("stop")}</Button></div>
         <div aria-live="polite">
-          {pending && <p role="status">{t("loading")}</p>}
+          {pending && <p role="status">{requestedPreview(message) ? t("previewRunning") : t("loading")}</p>}
           {error && <p role="alert">{error}</p>}
           {stale && <p role="alert">STALE_CONTEXT — {t("stale")}</p>}
           {response && !stale && <div data-agent-answer className="space-y-3">
             <p>{response.modelMode === "fake_test" ? "MODEL_MODE: FAKE / TEST" : "MODEL_MODE: EXTERNAL"}</p>
             {response.error && <p role="alert">{response.error}</p>}
             <p className="whitespace-pre-wrap break-words">{response.answer}</p>
+            {response.preview && <section data-agent-preview className="space-y-2 rounded border p-3">
+              <p>{t("previewTitle")} — Preview only · {t("previewNotSaved")} · {t("previewNotApplied")}</p>
+              <p>{response.preview.status === "ok" ? t("previewSuccess") : t("previewFailure")}</p>
+              <p>{t("previewAssumptions")}: {response.preview.assumptions.rotationProfile} · SYNTHETIC</p>
+              {response.preview.differences && <table className="w-full text-xs"><thead><tr><th>{t("previewMetric")}</th><th>{t("previewCurrent")}</th><th>Preview</th><th>Δ</th></tr></thead><tbody>
+                {Object.entries(response.preview.differences).map(([metric, diff]) => <tr key={metric}><td>{metric}</td><td>{diff.current ?? "—"}</td><td>{diff.preview ?? "—"}</td><td>{diff.delta ?? "—"}</td></tr>)}
+              </tbody></table>}
+              <p className="break-all text-xs">revision: {response.preview.baseRevision} · {response.preview.currentRevision}</p>
+              <p className="text-xs">source: {response.preview.source.engine} · sampledAt: {response.preview.source.sampledAt} · computedAt: {response.preview.computedAt} · cache: {String(response.preview.cacheHit)}</p>
+              <p className="text-xs">{t("previewLimitation")}</p>
+              {response.preview.issue && <p role="alert">{response.preview.issue.code}</p>}
+            </section>}
             <ul aria-label={t("tools")}>{response.tools.map((tool, i) => <li className="rounded border p-2" key={i}>{tool.name}: {tool.status} {tool.code} ({tool.latencyMs} ms)</li>)}</ul>
             <ul aria-label={t("sources")}>{response.sources.map((source, i) => <li className="break-all text-xs" key={i}>{source.type} · {source.contextRevision} · {source.planDiagnosticId} · {source.planId} · {source.sampledAt ? `sampledAt: ${source.sampledAt}` : `updatedAt: ${source.updatedAt}`}</li>)}</ul>
             <ul aria-label={t("limitations")}>{response.limitations.map((item) => <li className="text-xs" key={item}>{item}</li>)}</ul>

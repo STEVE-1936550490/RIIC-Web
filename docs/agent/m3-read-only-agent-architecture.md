@@ -52,3 +52,7 @@ Gate 产生 WeakMap 认证的进程内许可，绑定用户和单个 run；克�
 `model-payload-boundary` 路径级投影独立于领域 DTO；额外字段拒绝，已分类不必要字段删除，saved plan IDs 本轮别名化。domain service 仍收到经映射的真实 ID 并执行原 consent/ownership/retention。真实 sources 留在 API DTO，不由模型生成。完整快照没有直接进入 Prompt。Responses encrypted continuation 和 M1 classifier 未批准业务载荷，保留 synthetic 行为且 business fail-closed。
 
 新增 `/api/agent/consent` 及独立迁移只存政策状态，不给 Agent 新工具。面板显式 opt-in、拒绝和撤回，核心工作台不依赖该选择。细节见 [Data Map](./model-egress-data-map.md)、[Provider 证据](./provider-data-processing.md)、[Runbook](./external-processing-runbook.md)。当前目录没有 approved Provider，MoMA 仍 `BLOCKED_UNVERIFIED_PROCESSING`。
+
+## M4 compute-only extension — 2026-09-09
+
+The separately authorized [M4 compute-only preview](m4-read-only-planning-preview.md) adds `plan.preview` only for an explicitly requested, server-bound synthetic scenario in fake mode. Four M0 read tools retain their behavior. The shared planning service owns validation, cache, admission, existing solver/record/public-DTO boundaries; preview never saves/applies a plan or changes Workspace. The optional final `preview` DTO is deterministic and independently parsed; model text does not establish compute success. External providers cannot receive this new tool under the current M3.6 field policy, and business egress remains BLOCKED_PROVIDER_POLICY.

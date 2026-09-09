@@ -1,3 +1,4 @@
+import { requestedPreview, parsePreviewResult } from "./preview-contract.ts";
 import { assertModelEgress } from "./egress-policy.ts";
 import { record, type AgentFinalResult } from "./run-contract.ts";
 import type { LoopProvider, LoopRequest, LoopDecision } from "./loop-provider.ts";
@@ -22,6 +23,10 @@ export class LocalDemoProvider implements LoopProvider {
     if (request.observations.length) {
       const last = request.observations.at(-1)!;
       const result = record(last.result);
+      if (last.call.name === "plan.preview") {
+        const preview = parsePreviewResult(result);
+        return { decision: { type: "final", answer: preview.status === "ok" ? `FAKE / TEST — 试算完成；未保存、未应用。 PREVIEW_ONLY / NOT_SAVED / NOT_APPLIED. differences: ${JSON.stringify(preview.differences)}` : "FAKE / TEST — 试算失败，未生成候选方案；未保存、未应用。" } };
+      }
       let facts = `status: ${result.status}`;
       if (result.status === "ok" && last.call.name === "current_plan.get_summary") facts += `; shiftCount: ${record(result.data).shiftCount}`;
       if (result.status === "ok" && last.call.name === "current_plan.get_room_detail") {
@@ -36,6 +41,12 @@ export class LocalDemoProvider implements LoopProvider {
       return { decision: { type: "final", answer: `FAKE / TEST — ${facts}` } };
     }
     const message = request.message.trim();
+    const rotationProfile = requestedPreview(message);
+    const previewTool = request.tools.find((tool) => tool.name === "plan.preview");
+    if (rotationProfile && previewTool) {
+      const baseRevision = /Base revision: (.*?)\. Requested rotation:/.exec(previewTool.description)?.[1];
+      return { decision: { type: "calls", calls: [{ id: "local-preview-1", name: "plan.preview", arguments: { baseRevision, rotationProfile } }] } };
+    }
     let name = ""; let args: unknown = {};
     if (/^(summary|解释当前方案)$/i.test(message)) name = "current_plan.get_summary";
     const room = /^(?:room|房间)\s+(.+?)(?:\s+@([0-9]+))?$/i.exec(message);

@@ -29,5 +29,17 @@
   "grantProcessing": "同意并启用外部模型",
   "declineProcessing": "暂不启用",
   "revokeProcessing": "撤回外部模型处理同意",
-  "reviewProcessing": "重新查看外部处理说明"
+  "reviewProcessing": "重新查看外部处理说明",
+  "previewExample": "使用合成试算示例（仅顾问面板）",
+  "previewInstructions": "示例基线为 main_backup_12_12。输入：如果把轮换改成 abc_12_6_6，试算一下。",
+  "previewRunning": "正在计算试算方案…",
+  "previewTitle": "试算方案",
+  "previewNotSaved": "未保存",
+  "previewNotApplied": "未应用",
+  "previewSuccess": "合成试算完成",
+  "previewFailure": "试算失败，未生成候选方案",
+  "previewAssumptions": "用户假设",
+  "previewMetric": "指标",
+  "previewCurrent": "当前示例",
+  "previewLimitation": "使用固定的合成 solver 输出，仅验证工程链路，不代表实际产量、可行性或最优性。真实业务上下文仍禁止外发。"
 }

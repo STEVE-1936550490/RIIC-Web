@@ -1,3 +1,4 @@
+import { syntheticPreviewAccess } from "./synthetic-planning-preview.ts";
 import { processingAccess } from "./processing-access.ts";
 import { createCompatibleLoopProviderFromEnv } from "./compatible-provider.ts";
 import { assertBusinessText } from "./model-payload-boundary.ts";
@@ -40,7 +41,8 @@ export async function handleAgentRequest(request: Request, dependencies: Omit<ty
       runId: createRequestId(), answer: "External model access to business context is blocked by privacy policy.", intent: null, modelMode: "external",
       sources: [], tools: [], limitations: ["BLOCKED_PRIVACY"], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }, requestId));
     if (!config.fakeAllowed) assertBusinessText(message);
-    const result = await runReadOnlyAgent({ message, context: { actor, snapshot, ...dependencies.services() }, provider: config.fakeAllowed ? dependencies.provider() : dependencies.externalProvider(),
+    const preview = config.fakeAllowed ? syntheticPreviewAccess({ actor, session, snapshot, message, ip: requestClientIp(request) }) : undefined;
+    const result = await runReadOnlyAgent({ message, context: { ...dependencies.services(), actor, snapshot, preview }, provider: config.fakeAllowed ? dependencies.provider() : dependencies.externalProvider(),
       egress, signal: request.signal });
     return noStore(successResponse(result, requestId));
   } catch (error) {

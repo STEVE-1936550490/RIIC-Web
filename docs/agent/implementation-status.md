@@ -1,5 +1,39 @@
 # Agent Implementation Status
 
+## M4 final engineering checkpoint — 2026-09-09
+
+This section supersedes earlier current/next instructions. The latest task authorizes the M3.6 audit-only checkpoint followed by review, offline validation and publication of the existing M4 candidate. No M5/M6, deployment, production database or real model work is authorized or performed.
+
+PHASE A isolated exactly the prior M3.6 re-audit additions using the preserved candidate hashes and the `6dff1a5b5f2faf75038e5802e30615ac78ce2760` baseline: three documents, 38 inserted lines, no runtime/tests/UI staged. Classification was M3_6_REVALIDATION_DOC_DELTA = 3 documents, M4_EXISTING_CANDIDATE = 28 files, AMBIGUOUS = 0. Commit **`8c35241d6391ab586beea519d61339fc19f0f4f2`** (`docs(agent): revalidate M3.6 egress release readiness`) was pushed to `origin diy/agent-m0-m3`; a fresh remote read matched local HEAD. The M4 candidate remained unstaged/untracked and intact. AGENTS.md remains ignored and unchanged at SHA-256 `cf10d57585e9de9e0992695560962bb3682e7e0e11893d67f95ffdf4f016335f`.
+
+| Final engineering state | Result |
+| --- | --- |
+| FINAL_M4_CODE_REVIEW | PASS — HIGH 0, MEDIUM 0, LOW 1 fixed / 0 open |
+| M4_ENGINEERING_CLOSEOUT | COMPLETE — bounded fake/synthetic compute-only preview |
+| PLANNING_SERVICE_EXTRACTION / PLAN_PREVIEW_TOOL | COMPLETE / COMPLETE |
+| M4_AUTHORIZATION / M4_BUDGETS / M4_NO_WRITE_GUARANTEE | PASS / PASS / PASS |
+| M4_AGENT_INTEGRATION / M4_UI / M4_OFFLINE_VALIDATION | PASS / PASS / PASS |
+| TEST_PLANNING_SERVICE / TEST_PLAN_PREVIEW | 9/9 / 11/11 |
+| TEST_AGENT / GOLDEN / API_CONTRACT | 280/280 / 34/34 / 76/76 |
+| TSC / CHECK / I18N / DIFF_CHECK | PASS / PASS / PASS / PASS |
+| M4_BUILD | PASS — new isolated cloud-enabled webpack + standalone |
+| M4_E2E | PASS — 6/6 mock browser cases, no skipped/failed cases |
+| M4_REAL_SOLVER_VALIDATION | NOT_RUN |
+| POSTGRES_MIGRATION_VALIDATION | NOT_VALIDATED_ON_REAL_POSTGRES — M3.6 Consent migration/persistence; M4 adds no schema |
+| EXTERNAL_EGRESS_ENGINEERING | COMPLETE |
+| PROVIDER_PROCESSING_EVIDENCE / PROVIDER_RELEASE_STATUS | INCOMPLETE / BLOCKED_UNVERIFIED_PROCESSING |
+| REAL_BUSINESS_EGRESS_RELEASE / REAL_USER_CONTEXT_TO_EXTERNAL_MODEL | BLOCKED_PROVIDER_POLICY / BLOCKED_PROVIDER_POLICY |
+| MODEL_HTTP_REQUESTS_THIS_SESSION | 0 — no real external model calls |
+| DEPLOY / M5_STATUS / M6_STATUS | NOT_PERFORMED / NOT_STARTED / NOT_STARTED |
+
+Review details R1–R14 are in [M4 planning preview](m4-read-only-planning-preview.md). No runtime repair or redesign was needed. The single LOW finding was explicit Golden coverage for ordinary questions, failed previews and second attempts; new tests close that gap. Additional behavior tests exercise normal page HTTP validation/solver errors/cache inputs and verify saved-plan metadata remains unchanged. First-run test-fixture type/default-value errors were corrected before final passing gates; they are not represented as successful executions.
+
+All listed gates were newly executed this round using clean fake/synthetic/mock dependencies. `npm run check` includes the service/preview/Agent/API/i18n suites and existing page/cache regressions; Golden and TypeScript also ran separately. Build and E2E used `/tmp/riic-agent-closeout-T1JeSx`, containing the current runtime and final tests. Only final audit documents were updated after creating that copy. Browser mock tests demonstrate UI behavior; backend tests exercise actual handler/Loop/Registry/shared service with a mock solver. These results do not establish real solver feasibility/performance, real MoMA processing, real PostgreSQL persistence or deployment readiness.
+
+Original evidence packages remain intact (21/46/36/86/51 hashes); the prior M3.6 re-audit package also verified all 10 hashes. Final local review/test/publication evidence is retained outside Git under `/root/riic-web-agent-lab/acceptance-handoffs/2026-09-09-m4-checkpoint/`. Both push checks inspect unchanged workflow triggers: this feature branch does not trigger deployment, real model calls or production mutation. M4 publication uses a normal commit/push without history rewrite; final local/remote SHA and worktree status are verified after push and recorded in that evidence package.
+
+Stop after the M4 checkpoint. Suggested follow-ups only: **A. M4 real-solver/test-environment integration acceptance; B. Provider processing evidence; C. an explicit later M5/M6 decision.** None is started here.
+
 ## M3.6-only re-audit — 2026-09-09, latest task scope
 
 This section supersedes earlier **next-task** instructions for this round. Fresh recovery found LOCAL_HEAD = REMOTE_HEAD = `6dff1a5b5f2faf75038e5802e30615ac78ce2760`, branch `diy/agent-m0-m3`, with no staged files and 17 modified + 11 untracked existing M4 candidate files. The older `74ae80e…` reference is historical. The original Chat compatibility/M3.6 checkpoint is already committed; no commit, push or deployment occurred in this re-audit. No reset, pull, merge, rebase, clean, stash or branch switch was performed.
@@ -29,6 +63,44 @@ New executions used the clean offline environment with no production/model confi
 Recovery verified all original evidence packages (21/46/36 entries), M3.6 final evidence (86) and the existing M4 candidate evidence (51). All 28 existing candidate hashes matched at recovery. AGENTS.md remains ignored, unmodified and unstaged, SHA-256 `cf10d57585e9de9e0992695560962bb3682e7e0e11893d67f95ffdf4f016335f`. This round changes only this status document, the Data Map scope note and the Provider research supplement; original implementation is preserved. New local evidence is stored outside Git under `/root/riic-web-agent-lab/acceptance-handoffs/2026-09-09-m36-reaudit/`.
 
 Next minimum task: **补足适用于 MoMA API 的官方数据处理证据** — retention, training/improvement use and applicable processing terms first, with monitoring, region, subprocessors and deletion conditions also resolved as required. This does not authorize real model requests, business egress, M4 continuation or publication.
+
+## M4 compute-only preview — local candidate, 2026-09-09
+
+This section supersedes earlier current/next labels. PHASE A independent M3.6 review passed and checkpoint **`6dff1a5b5f2faf75038e5802e30615ac78ce2760`** was committed and pushed to `origin diy/agent-m0-m3`. A fresh remote read matched LOCAL_HEAD and the working tree was clean before PHASE B. The checkpoint includes the preserved Chat compatibility fixes and M3.6 engineering gate; it does not approve MoMA processing or real business egress.
+
+| State | Result |
+| --- | --- |
+| PHASE_A_M3_6_REVIEW / COMMIT / PUSH | PASS / COMPLETE / COMPLETE |
+| EXTERNAL_EGRESS_ENGINEERING | COMPLETE |
+| PROVIDER_PROCESSING_EVIDENCE | INCOMPLETE — all seven MoMA facts remain UNKNOWN |
+| PROVIDER_RELEASE_STATUS | BLOCKED_UNVERIFIED_PROCESSING |
+| REAL_BUSINESS_EGRESS_RELEASE | BLOCKED_PROVIDER_POLICY |
+| REAL_USER_CONTEXT_TO_EXTERNAL_MODEL | BLOCKED_PROVIDER_POLICY |
+| PHASE_B_M4_STATUS | COMPLETE_LOCAL_CANDIDATE — fake/synthetic compute-only scope |
+| PLANNING_SERVICE_EXTRACTION | COMPLETE — same business core for HTTP and Tool |
+| PLAN_PREVIEW_TOOL | COMPLETE — compute, explicit request, one rotation candidate |
+| M4_AUTHORIZATION | PASS — server actor, opaque permit, snapshot fingerprint, base/current revision, narrow input |
+| M4_BUDGETS | PASS — one attempt, existing admission, 5-second Tool / 20-second Agent budgets, no auto retry |
+| M4_NO_WRITE_GUARANTEE | PASS — no saved-plan/Workspace/Box/apply operation; existing run/cache bookkeeping is separate |
+| M4_AGENT_INTEGRATION | PASS — API → fake model → preview → shared core → mock solver boundary |
+| M4_UI | PASS — existing Advisor Panel, explicit synthetic example, differences, failure/cancel/stale, not saved/applied |
+| M4_OFFLINE_VALIDATION | PASS — service 7/7; preview 11/11; Agent 275/275; Golden 31/31; API contract 76/76; TypeScript/check/i18n/lint/diff |
+| M4_BUILD | PASS — isolated current-runtime cloud-enabled webpack and standalone preparation |
+| M4_E2E | PASS — 6/6 mock browser cases, no failures/skips |
+| MODEL_HTTP_REQUESTS_THIS_SESSION | 0 — real external model requests |
+| M4_COMMIT / PUSH / DEPLOY | NOT_PERFORMED |
+
+Implementation and audit: [M4 read-only planning preview](m4-read-only-planning-preview.md). `/api/plan` now delegates HTTP work to `planning-api.ts` and shared validation/cache/admission/record/public-DTO work to `planning-service.ts`. The normal page keeps its existing real infra dependency and queued-deployment restrictions. M4's fake demo uses the same service with server-owned synthetic sample/solver/record dependencies, preserving shared admission and intentionally taking cache bypass; tests also exercise cache hits, leases, reference durability and cancellation. Existing infra timeout/fallback internals are retained; no second solver orchestration was created.
+
+The local capability supports only a requested rotation change against the current versioned synthetic example. It cannot reconstruct or compute a real Workspace from the minimized Agent snapshot. The panel's checkbox changes only its synthetic request projection; it never changes the page plan. Preview numbers are authored mock outputs, not real production/feasibility/optimality evidence. External providers cannot see/call preview under this phase's policy, even after a future Provider approval; M3.6's external field whitelist remains unchanged and rejects this unclassified tool.
+
+Cancellation does not claim to forcibly kill the existing private CLI: the Agent stops waiting and ignores late output, while the service holds admission until already-started non-cooperative execution settles. No later solver invocation is started after cancellation, and a failed/timed-out attempt consumes the run's only preview budget. No real private solver or production database was used for acceptance. M3.6's missing test PostgreSQL validation remains a separate deployment limitation.
+
+Final new executions: `npm run check` PASS (Agent 275/275 including 7 shared-service and 11 preview tests, API 76/76, i18n/legal, lint and existing regressions); separate Golden 31/31 (included in Agent); installed TypeScript `--noEmit` PASS; `git diff --check` PASS. Isolated `ACCOUNT_CLOUD_SYNC_ENABLED=1 npm run build -- --webpack` + standalone PASS and `npm run test:e2e:agent` 6/6. Browser tests use mocked HTTP, while separate backend tests execute actual HTTP handlers/Loop/Registry/core with synthetic dependencies. The final two test-file additions and documentation updates postdate the build; all runtime, API, UI, legal, dependency/config and E2E fixture hashes match the tested build source.
+
+The first isolated-copy attempt hit sandbox `spawnSync git EPERM`; the approved outside-sandbox copy succeeded. Intermediate missing-module/test-fixture failures were fixed and are not counted as passes. Local evidence lives under `/root/riic-web-agent-lab/acceptance-handoffs/2026-09-09-m4-candidate/`, with separate PHASE A/B logs, candidate hashes, a public-source manifest and final status. Earlier evidence packages and AGENTS.md remain unchanged. HEAD is still the M3.6 checkpoint; no M4 staging, commit, push, deployment or real model acceptance occurred.
+
+Next minimum task: **M4 最终 code review + checkpoint**. Stop here; no M5/M6 work.
 
 ## M3.6 checkpoint review — 2026-09-09, PHASE A
 

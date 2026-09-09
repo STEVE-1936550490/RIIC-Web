@@ -29,5 +29,17 @@
   "grantProcessing": "Agree and enable external model",
   "declineProcessing": "Not now",
   "revokeProcessing": "Withdraw external processing consent",
-  "reviewProcessing": "Review external processing consent"
+  "reviewProcessing": "Review external processing consent",
+  "previewExample": "Use synthetic preview example (advisor only)",
+  "previewInstructions": "Baseline: main_backup_12_12. Enter: preview abc_12_6_6",
+  "previewRunning": "Computing preview…",
+  "previewTitle": "Planning preview",
+  "previewNotSaved": "Not saved",
+  "previewNotApplied": "Not applied",
+  "previewSuccess": "Synthetic preview completed",
+  "previewFailure": "Preview failed; no candidate generated",
+  "previewAssumptions": "Requested assumptions",
+  "previewMetric": "Metric",
+  "previewCurrent": "Current example",
+  "previewLimitation": "Uses fixed synthetic solver outputs to validate the engineering flow; not evidence of real production, feasibility or optimality. Real business egress remains blocked."
 }

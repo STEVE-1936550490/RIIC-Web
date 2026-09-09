@@ -1,3 +1,4 @@
+import { requestedPreview } from "./preview-contract.ts";
 import { bindBusinessRun, assertBusinessRunSend } from "./business-egress.ts";
 import { createModelPayloadBoundary } from "./model-payload-boundary.ts";
 import { SYNTHETIC_DEADLINE_MAX, validateSyntheticAcceptanceOptions } from "./synthetic-acceptance-options.ts";
@@ -27,6 +28,7 @@ async function bounded<T>(work: (signal: AbortSignal) => Promise<T>, signal: Abo
 }
 function sourcesFor(result: ToolResult): AgentSource[] {
   const source = result.source;
+  if (source.type === "planning_preview") return [{ type: "planning_preview", contextRevision: source.contextRevision, sampledAt: source.sampledAt, planDiagnosticId: null, updatedAt: null, planId: null }];
   if (source.type === "current_context") {
     const sources: AgentSource[] = [{ type: "current_context", contextRevision: source.contextRevision, planDiagnosticId: source.planDiagnosticId, sampledAt: source.sampledAt, updatedAt: null, planId: null }];
     if ("data" in result && result.data && "observed" in result.data && result.data.observed.status === "available") sources.push({ type: "observed_schedule", contextRevision: source.contextRevision, planDiagnosticId: source.planDiagnosticId, sampledAt: result.data.observed.sampledAt, updatedAt: null, planId: null });
@@ -59,6 +61,7 @@ export async function runReadOnlyAgent(input: {
     result.contextRevision = context.snapshot?.contextRevision ?? null;
     if (!isIssuedActor(context.actor)) throw new AgentRunError("AGENT_ACTOR_REQUIRED");
     const business = input.provider.kind === "external" && input.egress.classification === "user_business_context";
+    if (input.provider.kind !== "fake" || requestedPreview(message) !== context.preview?.rotationProfile) context.preview = undefined;
     if (business) bindBusinessRun(input.egress, context.actor.userId, result.runId);
     const boundary = createModelPayloadBoundary();
     const observations: LoopObservation[] = [];
@@ -87,6 +90,7 @@ export async function runReadOnlyAgent(input: {
       let decision;
       try { decision = parseLoopDecision(response.decision); } catch { throw new AgentRunError("AGENT_MODEL_INVALID_OUTPUT"); }
       if (decision.type === "final") {
+        if (context.preview && result.preview?.status !== "ok") failed = true;
         result.status = failed ? "failed" : "ok";
         result.error = failed ? "AGENT_TOOL_FAILURE" : null;
         // A provider cannot turn a failed/ambiguous/missing tool observation into a success claim.
@@ -103,10 +107,11 @@ export async function runReadOnlyAgent(input: {
         let observation: unknown; let status = "failed"; let code: string | null = null;
         try {
           const executionCall = business ? boundary.resolveCall(call) : call;
-          const value = await bounded(() => executeRegisteredTool(executionCall.name, executionCall.arguments, context), signal, Math.min(toolMs, remaining()), "AGENT_TOOL_TIMEOUT");
+          const value = await bounded((toolSignal) => executeRegisteredTool(executionCall.name, executionCall.arguments, { ...context, signal: toolSignal }), signal, Math.min(toolMs, remaining()), "AGENT_TOOL_TIMEOUT");
           if (new TextEncoder().encode(JSON.stringify(value)).length > LIMIT.resultBytes) throw new AgentRunError("AGENT_RESULT_LIMIT");
           observation = value; status = value.status;
-          code = "issue" in value ? value.issue.code : null;
+          code = "issue" in value && value.issue ? value.issue.code : null;
+          if (call.name === "plan.preview" && "semantics" in value) result.preview = value;
           if (status === "ok" || status === "empty") {
             for (const source of sourcesFor(value)) if (!result.sources.some((s) => canonical(s) === canonical(source))) result.sources.push(source);
           } else failed = true;

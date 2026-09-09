@@ -1,3 +1,4 @@
+import { PLAN_PREVIEW_TOOL, parsePreviewInput, executePlanPreview } from "./tools/plan-preview.ts";
 import type { AgentExecutionContext } from "./execution-context.ts";
 import { canUseTool, requireToolPolicy } from "./policy.ts";
 import { AgentRunError } from "./run-contract.ts";
@@ -6,10 +7,11 @@ import { CURRENT_PLAN_ROOM_DETAIL_TOOL, executeCurrentPlanRoomDetail, parseCurre
 import { SAVED_PLAN_LIST_TOOL, executeSavedPlanList, parseSavedPlanListInput } from "./tools/saved-plan-list.ts";
 import { SAVED_PLAN_COMPARE_TOOL, executeSavedPlanCompare, parseSavedPlanCompareInput } from "./tools/saved-plan-compare.ts";
 
-export type ToolResult = ReturnType<typeof executeCurrentPlanSummary> | ReturnType<typeof executeCurrentPlanRoomDetail> | Awaited<ReturnType<typeof executeSavedPlanList>> | Awaited<ReturnType<typeof executeSavedPlanCompare>>;
-type Descriptor = { name: string; description: string; effect: "read"; inputSchema: Readonly<Record<string, unknown>>;
+export type ToolResult = Awaited<ReturnType<typeof executePlanPreview>> | ReturnType<typeof executeCurrentPlanSummary> | ReturnType<typeof executeCurrentPlanRoomDetail> | Awaited<ReturnType<typeof executeSavedPlanList>> | Awaited<ReturnType<typeof executeSavedPlanCompare>>;
+type Descriptor = { name: string; description: string; effect: "read" | "compute"; inputSchema: Readonly<Record<string, unknown>>;
   parse(input: unknown): unknown; execute(input: unknown, context: AgentExecutionContext): ToolResult | Promise<ToolResult> };
 const registry: readonly Descriptor[] = Object.freeze([
+  { ...PLAN_PREVIEW_TOOL, parse: parsePreviewInput, execute: executePlanPreview },
   { ...CURRENT_PLAN_SUMMARY_TOOL, parse: parseCurrentPlanSummaryInput, execute: (input, ctx) => executeCurrentPlanSummary(input, { snapshot: ctx.snapshot }) },
   { ...CURRENT_PLAN_ROOM_DETAIL_TOOL, parse: parseCurrentPlanRoomDetailInput, execute: (input, ctx) => executeCurrentPlanRoomDetail(input, { snapshot: ctx.snapshot }) },
   { ...SAVED_PLAN_LIST_TOOL, description: "List actor-owned saved plan metadata; preserve duplicate titles for disambiguation.", parse: parseSavedPlanListInput,
@@ -22,7 +24,7 @@ export function toolDescriptor(name: string): Descriptor {
   if (!tool) throw new AgentRunError("AGENT_UNKNOWN_TOOL"); return tool;
 }
 export function visibleTools(context: AgentExecutionContext) {
-  return registry.filter((tool) => canUseTool(tool.name, context)).map(({ name, description, effect, inputSchema }) => ({ name, description, effect, inputSchema }));
+  return registry.filter((tool) => canUseTool(tool.name, context)).map(({ name, description, effect, inputSchema }) => ({ name, description: name === "plan.preview" ? `${description} Base revision: ${context.preview?.baseRevision}. Requested rotation: ${context.preview?.rotationProfile}.` : description, effect, inputSchema }));
 }
 export async function executeRegisteredTool(name: string, input: unknown, context: AgentExecutionContext): Promise<ToolResult> {
   requireToolPolicy(name, context);

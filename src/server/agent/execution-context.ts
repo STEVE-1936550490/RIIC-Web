@@ -14,6 +14,7 @@ export function actorFromWebsiteSession(session: unknown, requestId: string): Ac
 }
 export function isIssuedActor(actor: ActorContext | null): actor is ActorContext { return actor !== null && issued.has(actor); }
 export type AgentExecutionContext = {
+  preview?: import("./planning-preview-access.ts").PreviewAccess; signal?: AbortSignal;
   actor: ActorContext | null; snapshot: AgentContextSnapshot | null;
   savedPlans: SavedPlanReadService; comparison: SavedPlanComparisonReadService;
 };
