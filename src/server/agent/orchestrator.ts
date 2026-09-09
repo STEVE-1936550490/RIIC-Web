@@ -1,3 +1,6 @@
+import { bindBusinessRun, assertBusinessRunSend } from "./business-egress.ts";
+import { createModelPayloadBoundary } from "./model-payload-boundary.ts";
+import { SYNTHETIC_DEADLINE_MAX, validateSyntheticAcceptanceOptions } from "./synthetic-acceptance-options.ts";
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { executeRegisteredTool, visibleTools, type ToolResult } from "./tool-registry.ts";
@@ -36,21 +39,28 @@ function sourcesFor(result: ToolResult): AgentSource[] {
 /** No persistence or raw logs. All metadata returned is explicitly built here. */
 export async function runReadOnlyAgent(input: {
   message: string; context: AgentExecutionContext; provider: LoopProvider; egress: EgressContext; signal?: AbortSignal;
-  // Tests may lower deadlines, never raise production limits.
+  // Only explicit server-owned synthetic acceptance may raise deadlines.
+  syntheticAcceptance?: boolean;
   deadlines?: { totalMs?: number; toolMs?: number };
 }): Promise<AgentFinalResult> {
   const result: AgentFinalResult = { status: "failed", answer: "", runId: randomUUID(), contextRevision: null,
     modelMode: input.provider.kind === "fake" ? "fake_test" : "external", intent: null, sources: [], limitations: ["READ_ONLY_POC", "PAGE_CONTEXT_IS_NOT_AUTHORIZATION"], tools: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, error: null };
   const signal = input.signal ?? new AbortController().signal;
   const started = performance.now();
-  const totalMs = Math.max(1, Math.min(input.deadlines?.totalMs ?? LIMIT.totalMs, LIMIT.totalMs));
-  const toolMs = Math.max(1, Math.min(input.deadlines?.toolMs ?? LIMIT.toolMs, LIMIT.toolMs));
+  const synthetic = input.syntheticAcceptance === true && input.egress.classification === "synthetic";
+  const totalMs = Math.max(1, Math.min(input.deadlines?.totalMs ?? LIMIT.totalMs, synthetic ? SYNTHETIC_DEADLINE_MAX.totalMs : LIMIT.totalMs));
+  const toolMs = Math.max(1, Math.min(input.deadlines?.toolMs ?? LIMIT.toolMs, synthetic ? SYNTHETIC_DEADLINE_MAX.toolMs : LIMIT.toolMs));
   const remaining = () => { const ms = totalMs - (performance.now() - started); if (ms <= 0) throw new AgentRunError("AGENT_RUN_TIMEOUT"); return ms; };
   try {
+    if (input.syntheticAcceptance && !synthetic) throw new AgentRunError("AGENT_MODEL_CONFIG_INVALID");
+    if (input.deadlines) validateSyntheticAcceptanceOptions(input.deadlines);
     const message = text(input.message, 2000);
     const context = { ...input.context, snapshot: validatedSnapshot(input.context.snapshot) };
     result.contextRevision = context.snapshot?.contextRevision ?? null;
     if (!isIssuedActor(context.actor)) throw new AgentRunError("AGENT_ACTOR_REQUIRED");
+    const business = input.provider.kind === "external" && input.egress.classification === "user_business_context";
+    if (business) bindBusinessRun(input.egress, context.actor.userId, result.runId);
+    const boundary = createModelPayloadBoundary();
     const observations: LoopObservation[] = [];
     const repeated = new Set<string>(); const callIds = new Set<string>(); let failed = false;
     for (let step = 1; step <= LIMIT.steps; step++) {
@@ -58,7 +68,13 @@ export async function runReadOnlyAgent(input: {
       // Includes the user message and all previous observations, not just the initial context.
       assertModelEgress(input.provider.kind, input.egress);
       let response;
-      try { response = await bounded((providerSignal) => input.provider.next({ runId: result.runId, message, tools: visibleTools(context), observations: structuredClone(observations), signal: providerSignal, egress: input.egress }), signal, remaining(), "AGENT_RUN_TIMEOUT"); }
+      try { response = await bounded(async (providerSignal) => {
+        const raw = { runId: result.runId, message, tools: visibleTools(context), observations: structuredClone(observations), signal: providerSignal, egress: input.egress };
+        const payload = business ? boundary.request(raw) : raw;
+        if (business) await assertBusinessRunSend(input.egress, payload);
+        providerSignal.throwIfAborted();
+        return input.provider.next(payload);
+      }, signal, remaining(), "AGENT_RUN_TIMEOUT"); }
       catch (error) { if (error instanceof AgentRunError) throw error; throw new AgentRunError("AGENT_PROVIDER_ERROR"); }
       remaining();
       if ((!response.usage || Object.values(response.usage).length < 3) && !result.limitations.includes("PROVIDER_USAGE_UNAVAILABLE")) result.limitations.push("PROVIDER_USAGE_UNAVAILABLE");
@@ -86,7 +102,8 @@ export async function runReadOnlyAgent(input: {
         const toolStarted = performance.now();
         let observation: unknown; let status = "failed"; let code: string | null = null;
         try {
-          const value = await bounded(() => executeRegisteredTool(call.name, call.arguments, context), signal, Math.min(toolMs, remaining()), "AGENT_TOOL_TIMEOUT");
+          const executionCall = business ? boundary.resolveCall(call) : call;
+          const value = await bounded(() => executeRegisteredTool(executionCall.name, executionCall.arguments, context), signal, Math.min(toolMs, remaining()), "AGENT_TOOL_TIMEOUT");
           if (new TextEncoder().encode(JSON.stringify(value)).length > LIMIT.resultBytes) throw new AgentRunError("AGENT_RESULT_LIMIT");
           observation = value; status = value.status;
           code = "issue" in value ? value.issue.code : null;

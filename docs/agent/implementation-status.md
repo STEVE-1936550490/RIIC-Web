@@ -1,5 +1,119 @@
 # Agent Implementation Status
 
+## M3.6 checkpoint review — 2026-09-09, PHASE A
+
+This is the final engineering checkpoint, including the previously reviewed Chat compatibility fixes. It supersedes earlier current/next labels; historical endpoint reports below remain historical. Recovery freshly verified LOCAL_HEAD = REMOTE_HEAD = `74ae80e967ef88bbc05ecde684488fd815e750e2`. All 53 candidate file hashes and all 1,856 final public source hashes matched the prior handoff. Earlier evidence packages verified 21/46/36 entries; the M3.6 package verified 86. AGENTS.md is unchanged, ignored and excluded.
+
+| State | Result |
+| --- | --- |
+| FINAL_M3_6_REVIEW | PASS — HIGH 0, MEDIUM 0; no runtime repair required |
+| M3_ENGINEERING_CLOSEOUT | COMPLETE |
+| M3_COMPAT_PROVIDER | COMPLETE — engineering, not current real endpoint validation |
+| EXTERNAL_EGRESS_ENGINEERING | COMPLETE |
+| PROVIDER_PROCESSING_EVIDENCE | INCOMPLETE |
+| PROVIDER_RELEASE_STATUS | BLOCKED_UNVERIFIED_PROCESSING |
+| PRIVACY_POLICY_UPDATE | COMPLETE |
+| CONSENT_FLOW | PASS — offline API/UI; live PostgreSQL execution remains unvalidated |
+| PAYLOAD_BOUNDARY | PASS |
+| EGRESS_GATE | PASS |
+| REAL_BUSINESS_EGRESS_RELEASE | BLOCKED_PROVIDER_POLICY |
+| REAL_USER_CONTEXT_TO_EXTERNAL_MODEL | BLOCKED_PROVIDER_POLICY |
+| REAL_MODEL_VALIDATION | Historical synthetic compatibility evidence only; no current business-data validation |
+| MODEL_HTTP_REQUESTS_PHASE_A | 0 |
+| M4_STATUS | NOT_STARTED |
+
+Independent review covered provider approval, session-only versioned consent, revoke, pre-factory fail-closed ordering, Loop/adapter rechecks, explicit projections and run-scoped saved-plan aliases, bilingual opt-in UI/privacy and the unchanged four-tool M0 registry. Endpoint/key/consent/private gateway/loopback/historical synthetic PASS cannot approve MoMA. Consent storage is policy state, not a model-callable business write. Migration 0016 is required and included; no production migration was run.
+
+Newly executed gates: `npm run check` PASS, including Agent **251/251** (all M3.6 egress/consent/privacy/payload tests), API contract **76/76**, i18n/legal, lint and existing regressions; separate Golden **25/25**; installed TypeScript `--noEmit` PASS; `git diff --check` PASS. The first sandbox check failed subprocess-based tests; the same clean offline wrapper outside the sandbox passed. Logs for this round are local `/tmp/riic-phase-a-*`, excluded from Git. No production DB or model configuration was inherited.
+
+Build/E2E were not repeated in PHASE A: runtime, dependencies, migration, API/UI and legal/i18n are byte-identical to the verified prior final candidate. Prior isolated cloud-enabled webpack build PASS and corrected mock Agent E2E **5/5** remain historical evidence, not newly executed tests. Missing test PostgreSQL remains a deployment-validation limitation; static migration checks do not replace it.
+
+M3.6 COMPLETE means an engineering release gate exists. It does **not** mean MoMA processing conditions are confirmed or real business data may be sent. All seven processing facts remain UNKNOWN. The push-triggered quality workflow is limited to main/develop; other workflows require PR/schedule/manual/reusable triggers. Pushing `diy/agent-m0-m3` does not trigger deployment or model execution through these workflows.
+
+PHASE A Commit/Push are explicitly authorized, conditional on these gates; their actual result is verified from Git after publication. Only after successful push and matching local/remote checkpoint may the separately authorized M4 compute-only local work begin. M4 Commit/Push/Deploy remain unauthorized. No M5/M6 work is included.
+
+## M3.6 final engineering closeout — 2026-09-09 (Asia/Shanghai)
+
+Current stage is External Model Business Data Egress Boundary, before M4. This section supersedes earlier **current/next** labels below without rewriting historical evidence. Recovery: `diy/agent-m0-m3`, LOCAL_HEAD and fresh read-only REMOTE_HEAD both `74ae80e967ef88bbc05ecde684488fd815e750e2`; 32 modified + 21 untracked files, none staged. A stale local remote-tracking ref is not the remote reading. The previous compatibility candidate contained 15 files after final review (the preceding offline closeout had 14); all remain present. Ten initially matched exactly and five had reviewed M3.6 deltas. Original handoff/offline/final-review manifests verified 21/46/36 entries respectively. AGENTS.md remains unchanged and ignored.
+
+| State | Result |
+| --- | --- |
+| M3_ENGINEERING_CLOSEOUT | COMPLETE — original four read-only M0 tools retained |
+| M3_COMPAT_PROVIDER | COMPAT_PATCH_PRESERVED; historical MoMA synthetic report only |
+| EXTERNAL_EGRESS_ENGINEERING | COMPLETE — server gates, consent, payload projection and UI implemented |
+| PROVIDER_PROCESSING_EVIDENCE | INCOMPLETE — no VERIFIED MoMA API processing facts |
+| PROVIDER_RELEASE_STATUS | BLOCKED_UNVERIFIED_PROCESSING |
+| PRIVACY_POLICY_VERSION | `2026-09-08-agent-external-processing`, effective date `2026-09-08` |
+| USER_CONSENT_FLOW | PASS_OFFLINE_API_AND_MOCK_UI; PostgreSQL execution BLOCKED_ENVIRONMENT |
+| MODEL_PAYLOAD_MINIMIZATION | PASS — explicit paths, unknown-field rejection, run-scoped plan aliases |
+| REAL_BUSINESS_EGRESS_RELEASE | BLOCKED_PROVIDER_POLICY |
+| DEPLOYMENT_READY | BLOCKED_PROVIDER_POLICY_AND_DATABASE_VALIDATION; not deployed |
+| REAL_MODEL_VALIDATION | NOT_RUN_NOT_AUTHORIZED; real model HTTP requests 0 |
+| M4_STATUS | NOT_STARTED |
+
+API authorization runs before external-client and domain-service construction. Operator feature + independent default-off business kill switch + approved profile + exact endpoint/protocol/profile version + current privacy/egress deployment versions are all required. Session-user consent separately binds five version fields; revoke and version changes block subsequent sends. A run-bound process-local capability and each adapter recheck enforce the second boundary. Browser input cannot claim synthetic, approve a provider or grant consent for another user. M1 classifier and encrypted reasoning remain synthetic-only. No fallback, new business tool, solver, full Box or unrestricted IO was introduced.
+
+The [Data Map](model-egress-data-map.md) lists actual wire fields and deletions; [Provider evidence](provider-data-processing.md) distinguishes UNKNOWN from VERIFIED; [Consent runbook](external-processing-runbook.md) describes operations, storage and withdrawal. English and Chinese privacy/UI copy describe independent opt-in, minimization, excluded credentials/diagnostics and the limits of withdrawal. Neither `store=false` nor user consent is a provider retention, training or legal assurance.
+
+Final executed offline gates: Agent **251/251**, Golden **25/25** (included in Agent, not additional), installed TypeScript `--noEmit` PASS, `npm run check` PASS (including i18n/legal, lint, API contracts **76/76** and existing regressions), `git diff --check` PASS. Current-source isolated `ACCOUNT_CLOUD_SYNC_ENABLED=1 npm run build -- --webpack` and standalone preparation PASS. `npm run test:e2e:agent` **5/5**, mock browser flows only; actual two-protocol adapter → mock HTTP → M2/alias refill tests provide separate backend evidence. Drizzle generate in the isolated copy reports no schema delta; static schema/SQL/journal checks PASS. `test:auth-integration` was attempted with a clean environment and stopped for missing test database configuration; no PostgreSQL tools/test instance are available. This remains **BLOCKED_ENVIRONMENT**, not a database PASS, and no real DB was queried or migrated.
+
+Final security review: HIGH 0, MEDIUM 0, LOW 1 fixed. The new default Consent browser mock was registered before a later catch-all route using `continue()`, so it was bypassed and old UI cases received local 401. Reordering fixture registration fixed the test; production source did not need changes during this resumed review. All five browser cases now execute. The initial browser run was interrupted after confirming the fixture fault; sandbox process/port failures and this unsuccessful run remain archived, not counted as passes. The production build matches all final runtime files; only the corrected E2E fixture and final documentation changed after build. The corrected E2E file was copied into the artifact before rerunning it.
+
+Persistent evidence: `/root/riic-web-agent-lab/acceptance-handoffs/2026-09-09-m36-final/` contains logs, recovery/compatibility comparisons, review findings, full candidate patch, changed-file list, final SHA-256 and build-source manifests. Earlier packages remain unchanged. Current hashes bind this offline candidate only; `HISTORICAL_TESTED_SNAPSHOT_MATCH=UNVERIFIED` remains. Historical MoMA Chat `zhipu/glm-5.3`, explicit legacy, basic/full PASS, 9 additional requests and broker 26/100 still apply only to that configuration/checked outputs. Client Schema PASS does not prove server strict enforcement; WorkBuddy is user testimony; the old CURRENT assertion, successful source fingerprint, precise times and environment remain unverified. Responses failures are retained below.
+
+`REAL_USER_CONTEXT_TO_EXTERNAL_MODEL=BLOCKED_PRIVACY`; `COMMIT / PUSH / DEPLOY=NOT_PERFORMED`. Engineering completion is not release approval. The only next minimum task is to obtain official MoMA API retention, training/improvement and applicable processing terms (including scope/version/entity) sufficient for review; this does not authorize M4 or real business egress.
+
+## Final code review — 2026-09-08, separate review round
+
+Reviewed fixed baseline `74ae80e967ef88bbc05ecde684488fd815e750e2` through the current candidate, with LOCAL_HEAD and a fresh read-only REMOTE_HEAD both at that SHA on `diy/agent-m0-m3`. The initial 14 candidate files exactly matched the previous offline-closeout manifest; its 46 evidence hashes verified. Root AGENTS.md, CLAUDE.md, CONTRIBUTING.md, M0 and both protocol documents were checked; no override/nested rule applies. AGENTS.md remains unchanged and outside Git.
+
+Final review gates: `npm run test:agent` **217/217**, `npm run test:agent:golden` **25/25** (included in Agent total), installed TypeScript `--noEmit`, `npm run check` and `git diff --check`: all PASS in this review round. Final candidate: 15 changed files (13 tracked modifications and 2 new files), no staged changes. `FINAL_CODE_REVIEW=PASS`; `HIGH_FINDINGS=0`; `MEDIUM_FINDINGS=0`; `LOW_FINDINGS=2` (both fixed); `COMPAT_PATCH_READY_TO_COMMIT=YES`.
+
+R1–R10 final review: PASS. No HIGH or MEDIUM issue found. Two LOW test-coverage findings were closed: the old-environment test previously passed values only to `readModelConfig`, so it could not detect import-time `process.env` regressions; and the deadline test exercised the Loop without traversing the API handler. A fresh-process mock-HTTP test now sets old acceptance variables before module loading and checks default rejection, explicit legacy acceptance and unchanged budgets. An actual API → Loop → M2 test observes the 20000/5000 ms timers and verifies browser compatibility/deadline overrides fail before provider construction. No runtime implementation was changed or refactored in this review.
+
+Legacy's only switch-dependent behavior remains allowlisted omission of non-null Chat reasoning/reasoning_content/reasoning_details/audio from protocol history. Only synthetic runner and tests opt in; ordinary factories use false, the HTTP API has no compatibility input, and external business context remains blocked. Deprecated function_call and generated call IDs stay rejected. Schema prompts stay in Chat; requests, strict flags, whole-JSON parsing, local shape/semantic validation, IDs and domain checks are unchanged. R1's supplier-neutral conclusion concerns compatibility selection: the pre-existing documented `api.openai.com` host rejection remains unchanged and is not a vendor fallback or new compatibility special case.
+
+This round changes tests and this status record only, relative to the previous candidate. Build/E2E are not rerun: runtime source, dependency manifests, Next/build configuration, API/UI, E2E fixtures and offline build/browser entrypoints are byte-identical to the prior isolated PASS artifact's source manifest. Prior build PASS and E2E 4/4 are historical offline artifact evidence, not new executions in this review. New evidence is under `/root/riic-web-agent-lab/acceptance-handoffs/2026-09-08-moma-final-review/`, separate from both previous packages.
+
+Historical MoMA configuration PASS remains a user/server report; the current patch is consolidated from archive and offline regression and has not been revalidated against the real endpoint. `HISTORICAL_TESTED_SNAPSHOT_MATCH=UNVERIFIED`; `REAL_ENDPOINT_VALIDATION_THIS_ROUND=NOT_RUN_NOT_AUTHORIZED`; `MODEL_REQUESTS_THIS_ROUND=0`; `REAL_USER_CONTEXT_TO_EXTERNAL_MODEL=BLOCKED_PRIVACY`; `COMMIT / PUSH / DEPLOY=NOT_PERFORMED`. No new feature or M4 work.
+
+## Compatibility patch closeout — 2026-09-08, offline evidence
+
+Scope: consolidate the seven archived dirty-worktree patches after synthetic MoMA acceptance. M3 remains complete; no M4, commit, push or deployment. LOCAL_HEAD and one freshly read REMOTE_HEAD both `74ae80e967ef88bbc05ecde684488fd815e750e2`, branch `diy/agent-m0-m3`; no branch switch, pull or upstream synchronization.
+
+Original handoff `SHA256SUMS` SHA-256 is `9c0dedc46f43d1dbd0f4d1c75559a42bc822c572f1c83a35e5d5501d62b3a398`: all 21 entries verified. Seven archived modifications exactly matched the initial worktree; four committed references matched both baseline and worktree. The archived patch independently reconstructed all seven files from the fixed baseline in scratch storage. No reapplication to the user worktree, no post-archive changes found. Original handoff remains unchanged; new evidence is separate. AGENTS.md remains ignored, untracked and unchanged; its Responses-only implementation note is historical and superseded by actual dual-protocol source, not edited here.
+
+Seven-patch disposition: retain the room schema clarification; retain and extend smoke fact classifications; retain the Chat-only Schema hint and empty tool-content handling; adjust Chat transport to explicit per-call legacy selection; replace global/unbounded timeout handling with bounded synthetic options and normal API clamps; update both documentation patches with distinct historical and current evidence. Fenced/embedded JSON extraction, generated old function-call IDs and environment-driven compatibility are not included. A discovered smoke error-wrapper regression is fixed: safe underlying capability/terminal codes survive, so rate/server failures stop further HTTP attempts. No fallback or response repair is introduced.
+
+The three archived Python scripts were reviewed, not executed or copied into the repository. They lack original baselines; full evolution is not established. Supplier defaults, broker credentials/control socket, retries and private orchestration stay outside the product. Reusable option parsing is integrated into the existing synthetic command and shared runner. Compatibility details and timeout meanings are documented in [compatible provider](compatible-provider.md).
+
+Historical user/server report dated 2026-09-08: `https://moma.cmecloud.cn/v1`, `chat_completions`, `zhipu/glm-5.3`, explicit `--chat-legacy-compat`, `--agent-strict-ms 30000 --agent-total-ms 60000 --agent-tool-ms 12000`; basic/full PASS, historical additional 9 requests (1+8), broker cumulative 26/100. The 30000 ms value bounds the outer structured probe, 60000 ms each current/saved Loop scenario, and 12000 ms tool waiting constrained by remaining scenario time. Chat HTTP stays capped at 15000 ms. Broker/control-client timeouts are separate.
+
+That PASS covers only the tested configuration and checked outputs; client Schema success is not reliable server Schema enforcement. WorkBuddy's Schema counterexample has only user testimony, no original evidence. Historical CURRENT failure assertion is unconfirmed. Successful-run source hash, precise start/end times and environment snapshot were not captured. `HISTORICAL_TESTED_SNAPSHOT_MATCH=UNVERIFIED` remains unchanged. This round has zero real model requests and does not repeat endpoint acceptance; final revised code cannot inherit historical real PASS. Earlier Responses failures below are preserved, not overwritten by Chat success.
+
+`REAL_ENDPOINT_VALIDATION_THIS_ROUND=NOT_RUN_NOT_AUTHORIZED`; `MODEL_REQUESTS_THIS_ROUND=0`; `REAL_USER_CONTEXT_TO_EXTERNAL_MODEL=BLOCKED_PRIVACY`; `COMMIT / PUSH / DEPLOY=NOT_PERFORMED`. Strict request shape, legacy parsing, client validation and unproven server enforcement are separate claims. Historical evidence gaps do not block engineering review.
+
+### Final offline gates and new provenance
+
+Final source: Agent tests **215/215**, Golden **25/25** (already included in 215), installed TypeScript `--noEmit`: PASS; `npm run check`: PASS including lint and existing API/shift regressions; `git diff --check`: PASS. Final isolated cloud-enabled webpack build and standalone preparation: PASS; Agent E2E **4/4**, zero failures/skips. The final gate records contain actual UTC start/end times and exit codes; they do not backfill historical acceptance timestamps. No dependency installation, real database connection, model request or original-service build occurred.
+
+Final build copy: `/tmp/riic-agent-closeout-pyFY5M`. Its non-document public source hashes match the final worktree. New evidence directory: `/root/riic-web-agent-lab/acceptance-handoffs/2026-09-08-moma-offline-closeout/`; `tested-source-manifest.json` SHA-256 `c1d06fd9f090dcb7c6e97ca4c390ceb933a1cc36e3aa7bb78e4f55d3ee852bec`. `final-files.sha256` lists every final changed/new file; `source-gates.json` and `artifact-gates.json` bind actual runs to their logs. Documentation was finalized after these runs; final hygiene/diff checks cover this documentation-only update.
+
+Initial sandbox child-process failures, the discovered error-wrapper test failures, and the lint control-regex failure are retained as unsuccessful intermediate evidence. A successful earlier build used a superseded source copy and is not the final build evidence. Final runs above replace intermediate outcomes; repeated tests are not accumulated into the coverage count. No live acceptance or network dependency audit was run in this offline scope.
+
+`ARCHIVE_INTEGRITY=PASS`; `WORKTREE_ARCHIVE_MATCH=INITIAL_EXACT_FINAL_REVIEWED_DELTA`; `HISTORICAL_TESTED_SNAPSHOT_MATCH=UNVERIFIED`; `COMPAT_PATCH_DELIVERY=READY_FOR_REVIEW`; `OFFLINE_VALIDATION=PASS`. Historical evidence gaps remain, but no required offline gate is blocked. AGENTS.md is unchanged and not added to Git.
+
+## Historical endpoint acceptance — user-run Chat basic, after 74ae80e
+
+- Evidence: the user ran the supplied basic-only command, which pins HEAD to `74ae80e967ef88bbc05ecde684488fd815e750e2`, and supplied its sanitized JSON summary. The assistant did not execute a real model request or inspect raw responses/credentials. The earlier OpenRouter proposal made zero model requests; the user explicitly selected this MoMA configuration before execution, not as an automatic fallback.
+- Configuration identity: endpointId `3069b2c951c6`; protocol `chat_completions`; requestedModel `zhipu/glm-5.3` (exact case); requestShape `m3.5b-strict-tools-v1`; mode `basic`; requestLimit `1`.
+- Outcome: overall `CAPABILITY_INCOMPATIBLE`; `basicCompletion=FAIL`; `AGENT_CHAT_CONTINUATION_UNSUPPORTED`; stage `basicCompletion`; category `continuation`; upstreamCode/upstreamType `UNKNOWN`; rootCause `UNRESOLVED`. Actual HTTP status is not present in this summary and is not inferred as a specific status code.
+- Request accounting: **1 user-run model HTTP attempt**. No retry, alternate protocol/model or full run. JSON/strict/current/saved are all `BLOCKED` with `BASIC_MODE_ONLY` and zero requests; `functionToolLoop=BLOCKED`. This is not evidence that those unexecuted capabilities fail or are unsupported.
+- Code-local finding: at this checkpoint, `validateChatEnvelope` rejects any non-null/non-undefined `reasoning`, `reasoning_content`, `reasoning_details`, `function_call` or `audio` field on the assistant message. Even an empty string or array triggers that guard. The summary does not identify which field was present, its shape, or whether it actually represented required continuation. Do not attribute the failure to a particular field or conclude that all Chat/Tool Calling is unsupported. The failure reached this local parser guard; it is not the earlier Responses routing diagnosis.
+- `reportedModels=[]` and `usage=unavailable` do not prove the upstream omitted these fields: validation throws before model/usage tracking. Do not infer zero billing. No hidden reasoning or response body is needed in the public evidence.
+- Historical MoMA Responses evidence below remains two attempts / eight HTTP attempts, root cause UNRESOLVED; this is a separate third manual acceptance attempt with one HTTP attempt. M3 local engineering delivery remains complete, real business egress remains `BLOCKED_PRIVACY`.
+- Next evidence needed: bounded diagnostic field identity and value shape/emptiness, without values or hidden reasoning, plus the applicable continuation contract. Do not remove the guard merely to obtain PASS. No further model call (including another basic) or full run is authorized by this result; full still requires basic success and separate authorization.
+
 ## Current local engineering closeout — 2026-09-07
 
 This records the **accepted worktree at engineering closeout, before subsequent commit/push authorization**, not a deployment or real-model acceptance. The table's operation statuses describe that closeout round; later publication is recorded by Git history and the target branch ref. M3 ends here; no M4 work is included. The user's complete M3 task supersedes the previous partial prompt and its missing-sections note.

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { readModelConfig } from "./compatible-config.ts";
 import { createCompatibleLoopProvider, createCompatibleModelProvider } from "./compatible-provider.ts";
 import { createChatCompletionsTransport, type ChatCompletionsConfig } from "./chat-completions-transport.ts";
@@ -19,6 +22,19 @@ const call = (id = "call-1", name = "current_plan__get_summary", args = "{}") =>
 const envelope = (message: unknown = { role: "assistant", content: "synthetic answer" }, reason = "stop", extra = {}) => ({ object: "chat.completion", id: "completion-1", model: "reported-synthetic", choices: [{ index: 0, message, finish_reason: reason }], ...extra });
 const called = (...calls: unknown[]) => envelope({ role: "assistant", content: null, tool_calls: calls }, "tool_calls");
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
+function runSmokeScript(args: string[], env: Record<string, string | undefined>, timeout = 5000) {
+  const dir = mkdtempSync(join(tmpdir(), "riic-agent-smoke-"));
+  const outPath = join(dir, "stdout.json");
+  const errPath = join(dir, "stderr.log");
+  const outFd = openSync(outPath, "w+");
+  const errFd = openSync(errPath, "w+");
+  try {
+    const result = spawnSync(process.execPath, args, { env: { ...process.env, ...env }, stdio: ["ignore", outFd, errFd], encoding: "utf8", timeout });
+    return { result, stdout: readFileSync(outPath, "utf8"), stderr: readFileSync(errPath, "utf8") };
+  } finally {
+    closeSync(outFd); closeSync(errFd); rmSync(dir, { force: true, recursive: true });
+  }
+}
 function harness(outputs: unknown[]) {
   const requests: { url: string; body: Record<string, unknown>; headers: Headers; redirect?: string }[] = [];
   const fetcher: typeof fetch = async (url, init) => {
@@ -142,11 +158,11 @@ test("Chat run instance cannot be used concurrently", async () => {
 });
 test("new commands stay offline without their own explicit opt-in, reject protocol mismatch", () => {
   for (const script of ["compatible-agent-smoke.mts", "chat-completions-agent-smoke.mts"]) for (const configuration of [{}, env]) {
-    const result = spawnSync(process.execPath, ["--experimental-strip-types", `scripts/${script}`], { env: { PATH: process.env.PATH, NODE_ENV: "test", ...configuration, RUN_RESPONSES_AGENT_SMOKE: "1", RUN_OPENAI_AGENT_SMOKE: "1" }, encoding: "utf8", timeout: 5000 });
-    assert.equal(result.status, 0); const summary = JSON.parse(result.stdout); assert.match(summary.status, /^NOT_RUN_/); assert.equal(summary.requests, 0);
+    const { result, stdout } = runSmokeScript(["--experimental-strip-types", `scripts/${script}`], { NODE_ENV: "test", ...configuration, RUN_RESPONSES_AGENT_SMOKE: "1", RUN_OPENAI_AGENT_SMOKE: "1" });
+    assert.equal(result.status, 0); const summary = JSON.parse(stdout); assert.match(summary.status, /^NOT_RUN_/); assert.equal(summary.requests, 0);
   }
-  const result = spawnSync(process.execPath, ["--experimental-strip-types", "scripts/chat-completions-agent-smoke.mts"], { env: { PATH: process.env.PATH, NODE_ENV: "test", ...env, AGENT_MODEL_PROTOCOL: "responses", RUN_CHAT_COMPLETIONS_AGENT_SMOKE: "1" }, encoding: "utf8", timeout: 5000 });
-  assert.equal(result.status, 1); assert.equal(JSON.parse(result.stdout).code, "AGENT_MODEL_PROTOCOL_UNSUPPORTED");
+  const { result, stdout } = runSmokeScript(["--experimental-strip-types", "scripts/chat-completions-agent-smoke.mts"], { NODE_ENV: "test", ...env, AGENT_MODEL_PROTOCOL: "responses", RUN_CHAT_COMPLETIONS_AGENT_SMOKE: "1" });
+  assert.equal(result.status, 1); assert.equal(JSON.parse(stdout).code, "AGENT_MODEL_PROTOCOL_UNSUPPORTED");
 });
 
 test("both adapters bind initial message/tools, reject alias collisions and work with unrelated configured endpoints/models", async () => {
@@ -165,5 +181,51 @@ test("both adapters bind initial message/tools, reject alias collisions and work
       const base = request.tools[0];
       await assert.rejects(collision.next({ ...request, tools: [{ ...base, name: "a.b" }, { ...base, name: "a__b" }] }));
     }
+  }
+});
+
+test("empty content is valid only with valid identified object-argument tool calls", async () => {
+  const valid = envelope({ role: "assistant", content: "", tool_calls: [call()] }, "tool_calls");
+  const h = harness([valid]); assert.equal(parseLoopDecision((await h.provider.next(req())).decision).type, "calls");
+  for (const value of [envelope({ role: "assistant", content: "" }), ...[call(""), call("bad id"), call("x", undefined, "[]"), call("x", undefined, "{"), call("x", undefined, '{"extra":true}')].map((c) => envelope({ role: "assistant", content: "", tool_calls: [c] }, "tool_calls"))]) {
+    const h = harness([value]);
+    if (JSON.stringify(value).includes("extra")) {
+      const { runReadOnlyAgent } = await import("./orchestrator.ts");
+      const result = await runReadOnlyAgent({ message: "synthetic", context: syntheticExecution(), egress: syntheticEgress, provider: h.provider });
+      assert.equal(result.status, "failed"); assert.equal(result.tools[0].code, "AGENT_TOOL_INVALID_INPUT");
+    } else await assert.rejects(h.provider.next(req()));
+  }
+});
+
+test("explicit legacy only drops side channels; requests and schema prompt stay identical; no synthesized IDs", async () => {
+  const { validateChatEnvelope } = await import("./chat-completions-transport.ts");
+  const bodies: unknown[] = [];
+  for (const legacy of [false, true]) {
+    const transport = createChatCompletionsTransport(config(), async (_url, init) => { bodies.push(JSON.parse(String(init?.body))); return json(envelope()); }, undefined, legacy);
+    await createChatCompletionsLoopProvider(config(), transport).next(req());
+    const sideChannel = envelope({ role: "assistant", content: "ok", reasoning_content: "private-reasoning", audio: {} });
+    if (legacy) {
+      const result = validateChatEnvelope(sideChannel, true);
+      assert.ok(!JSON.stringify(result).includes("private-reasoning"));
+      assert.equal(record(sideChannel.choices[0].message).reasoning_content, "private-reasoning");
+    } else assert.throws(() => validateChatEnvelope(sideChannel), { code: "AGENT_CHAT_CONTINUATION_UNSUPPORTED" });
+    assert.throws(() => validateChatEnvelope(envelope({ role: "assistant", content: "", function_call: { name: "x", arguments: "{}" } }, "function_call"), legacy));
+    assert.throws(() => validateChatEnvelope(envelope({ role: "assistant", content: "x" }, "function_call"), legacy));
+  }
+  assert.deepEqual(bodies[0], bodies[1]);
+});
+
+test("client rejects invalid schema and wrapped JSON with one HTTP attempt and no fallback in either mode", async () => {
+  const { callStructuredAgentIntent } = await import("./model-client.ts");
+  const { createChatCompletionsModelProvider } = await import("./chat-completions-provider.ts");
+  const valid = { intent: "get_room_detail", roomRef: "贸易站 1", leftPlanRef: null, rightPlanRef: null, missingFields: [], canProceed: true };
+  for (const legacy of [false, true]) for (const output of ["{}", JSON.stringify({ ...valid, extra: "private-payload" }), JSON.stringify({ ...valid, roomRef: null }), '```json\n' + JSON.stringify(valid) + '\n```', 'prefix ' + JSON.stringify(valid), "http-error"]) {
+    const requests: Record<string, unknown>[] = [];
+    const transport = createChatCompletionsTransport(config(), async (_url, init) => { requests.push(record(JSON.parse(String(init?.body)))); return output === "http-error" ? json({ error: { code: "unsupported_response_format" } }, 400) : json(envelope({ role: "assistant", content: output })); }, undefined, legacy);
+    await assert.rejects(callStructuredAgentIntent({ provider: createChatCompletionsModelProvider(config(), transport), messages: [{ role: "user", content: "synthetic" }], timeoutMs: 1000, egress: syntheticEgress }));
+    assert.equal(requests.length, 1);
+    assert.equal(record(requests[0].response_format).type, "json_schema");
+    assert.equal(record(record(requests[0].response_format).json_schema).strict, true);
+    assert.ok(String(record((requests[0].messages as unknown[])[0]).content).includes(JSON.stringify(AGENT_INTENT_DECISION_OUTPUT_CONTRACT.schema)));
   }
 });

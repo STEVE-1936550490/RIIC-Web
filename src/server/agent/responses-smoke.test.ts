@@ -1,10 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { readResponsesConfig } from "./responses-config.ts";
 import { runSyntheticResponsesSmoke } from "./responses-smoke.ts";
 import { record } from "./run-contract.ts";
 const env = { AGENT_MODEL_PROTOCOL: "responses", AGENT_MODEL_BASE_URL: "https://gateway.example.invalid/v1", AGENT_MODEL_API_KEY: "synthetic-key", AGENT_MODEL_ID: "synthetic-model" };
+function runSmokeScript(args: string[], env: Record<string, string | undefined>, timeout = 5000) {
+  const dir = mkdtempSync(join(tmpdir(), "riic-agent-smoke-"));
+  const outPath = join(dir, "stdout.json");
+  const errPath = join(dir, "stderr.log");
+  const outFd = openSync(outPath, "w+");
+  const errFd = openSync(errPath, "w+");
+  try {
+    const result = spawnSync(process.execPath, args, { env: { ...process.env, ...env }, stdio: ["ignore", outFd, errFd], encoding: "utf8", timeout });
+    return { result, stdout: readFileSync(outPath, "utf8"), stderr: readFileSync(errPath, "utf8") };
+  } finally {
+    closeSync(outFd); closeSync(errFd); rmSync(dir, { force: true, recursive: true });
+  }
+}
 function fakeHttp(badFacts = false): typeof fetch {
   return async (_url, init) => {
     const body = record(JSON.parse(String(init?.body)));
@@ -48,7 +64,7 @@ test("CLI defaults offline and legacy opt-in cannot trigger official endpoint", 
     ["responses-agent-smoke.mts", env, "NOT_RUN_NOT_OPTED_IN"],
     ["openai-agent-smoke.mts", { RUN_OPENAI_AGENT_SMOKE: "1", OPENAI_API_KEY: "synthetic-legacy", AGENT_OPENAI_MODEL: "legacy" }, "MIGRATED"],
   ] as const) {
-    const result = spawnSync(process.execPath, ["--experimental-strip-types", `scripts/${script}`], { env: { NODE_ENV: "test", PATH: process.env.PATH, ...environment }, encoding: "utf8", timeout: 5000 });
-    assert.equal(result.status, 0); assert.equal(JSON.parse(result.stdout).status, expected);
+    const result = runSmokeScript(["--experimental-strip-types", `scripts/${script}`], { NODE_ENV: "test", ...environment });
+    assert.equal(result.result.status, 0); assert.equal(JSON.parse(result.stdout).status, expected);
   }
 });

@@ -71,3 +71,23 @@ test("API deterministic demo executes summary, room and list→actual candidate 
   assert.equal(denied.sources.length, 0); assert.ok(!denied.answer.includes("hasKnownDifferences"));
   const missing = await execute("room nonexistent @99"); assert.equal(missing.status, "failed"); assert.equal(missing.sources.length, 0);
 });
+
+
+test("ordinary API schedules original budgets and rejects synthetic compatibility overrides before provider construction", async (t) => {
+  const timers: number[] = []; const original = globalThis.setTimeout;
+  t.mock.method(globalThis, "setTimeout", (...args: Parameters<typeof setTimeout>) => { timers.push(Number(args[1])); return original(...args); });
+  const response = await handleAgentRequest(request(), deps());
+  assert.equal((await response.json()).data.status, "ok");
+  assert.ok(timers.some((ms) => ms > 19000 && ms <= 20000), "API must schedule the original run budget");
+  assert.ok(timers.includes(5000), "API must schedule the original per-tool budget");
+  assert.ok(!timers.some((ms) => ms > 20000));
+  let constructed = 0;
+  for (const overrides of [{ syntheticAcceptance: true }, { deadlines: { totalMs: 60000, toolMs: 12000 } }, { chatLegacyCompat: true }, { strictMs: 30000 }]) {
+    const rejected = await handleAgentRequest(request({ message: "summary", context: syntheticExecution().snapshot, ...overrides }), {
+      ...deps(), provider: () => { constructed++; return new ScriptedLoopProvider([final]); },
+    });
+    assert.equal(rejected.status, 400);
+    assert.ok(!JSON.stringify(await rejected.json()).includes("syntheticAcceptance"));
+  }
+  assert.equal(constructed, 0);
+});

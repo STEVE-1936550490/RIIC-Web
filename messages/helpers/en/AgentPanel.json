@@ -1,6 +1,6 @@
 {
   "title": "Infrastructure advisor PoC",
-  "notice": "Read-only test panel. FAKE / TEST is a local deterministic demo, not a model-generated answer. Business data cannot be sent to external models.",
+  "notice": "Read-only advisor. FAKE / TEST is a local deterministic demonstration. External processing requires an approved provider and your separate consent.",
   "commands": "Test commands: summary; room trade_1; room trading @0 (zero-based shift); list title; compare leftID rightID. List duplicate titles first, then select explicit IDs.",
   "question": "Question",
   "send": "Send",
@@ -10,5 +10,24 @@
   "retry": "Retry",
   "tools": "Tool status",
   "sources": "Sources",
-  "limitations": "Limitations"
+  "limitations": "Limitations",
+  "processingError": "External processing is unavailable. Sign in and reopen the panel to check your consent.",
+  "processingLoading": "Checking external processing status…",
+  "disabled": "The advisor is disabled.",
+  "fake_test": "FAKE / TEST — local demonstration; no external model.",
+  "external_unavailable": "External provider unavailable: processing approval or deployment requirements are not satisfied. No business context is sent.",
+  "consent_required": "Your explicit consent is required.",
+  "consent_outdated": "The privacy policy or provider terms have changed. Review and consent again.",
+  "consent_revoked": "Consent withdrawn. Future external processing is blocked.",
+  "ready": "External processing enabled with your current consent.",
+  "processingPurpose": "The external model understands your question, selects read-only tools and explains their minimized results.",
+  "processingData": "May send: your question, necessary schedule summaries, queried room assignments and production facts, saved-plan titles, update times and deterministic differences. Saved-plan IDs use temporary aliases.",
+  "processingExcluded": "Never include credentials in your question. Cookies, API keys, Skland credentials, complete Operator Box, raw logs and internal diagnostics are excluded from context payloads.",
+  "processingWithdrawal": "Optional: declining leaves core features available. Withdrawal blocks future sends; it does not delete information already processed by a provider.",
+  "privacyLink": "Site privacy policy",
+  "providerLink": "Provider information (not proof of processing approval)",
+  "grantProcessing": "Agree and enable external model",
+  "declineProcessing": "Not now",
+  "revokeProcessing": "Withdraw external processing consent",
+  "reviewProcessing": "Review external processing consent"
 }

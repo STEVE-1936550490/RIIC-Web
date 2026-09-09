@@ -9,23 +9,32 @@ function boundedString(value: unknown, max: number): string {
   if (typeof value !== "string" || !value.trim() || value.length > max) throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
   return value;
 }
-export function validateChatEnvelope(value: unknown) {
+export function validateChatEnvelope(value: unknown, allowLegacy = false) {
+  const reasoningFields = ["reasoning", "reasoning_content", "reasoning_details", "audio"] as const;
   const r = record(value);
   if (r.object !== "chat.completion" || !Array.isArray(r.choices) || r.choices.length !== 1 || r.error) throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
   const choice = record(r.choices[0]); const msg = record(choice.message);
   if (choice.index !== 0 || msg.role !== "assistant") throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
   if (choice.finish_reason === "length") throw new AgentRunError("AGENT_CHAT_INCOMPLETE");
   if (choice.finish_reason === "content_filter" || msg.refusal) throw new AgentRunError("AGENT_CHAT_REFUSAL");
-  // Vendor-specific reasoning may require continuation. Never silently drop it to claim support.
-  if (["reasoning", "reasoning_content", "reasoning_details", "function_call", "audio"].some((key) => msg[key] !== undefined && msg[key] !== null)) throw new AgentRunError("AGENT_CHAT_CONTINUATION_UNSUPPORTED");
+  const hasReasoningSignals = reasoningFields.some((key) => msg[key] !== undefined && msg[key] !== null);
+  const hasLegacyFunctionCall = msg.function_call !== undefined && msg.function_call !== null;
+  // Vendor-specific reasoning may require continuation. Never silently drop it in strict mode.
+  if (!allowLegacy && (hasReasoningSignals || hasLegacyFunctionCall)) {
+    throw new AgentRunError("AGENT_CHAT_CONTINUATION_UNSUPPORTED");
+  }
+  // Legacy mode discards only optional side-channel fields, without mutating input.
+  // Old function_call has no trustworthy call ID and is not normalized.
+  if (hasLegacyFunctionCall) throw new AgentRunError("AGENT_CHAT_CONTINUATION_UNSUPPORTED");
   if (choice.finish_reason !== "stop" && choice.finish_reason !== "tool_calls") throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
-  const content = msg.content === null || msg.content === undefined ? null : boundedString(msg.content, 12000);
+  const content = msg.content === null || msg.content === undefined || msg.content === "" ? null : boundedString(msg.content, 12000);
   let calls: ChatCompletionMessageFunctionToolCall[] = [];
   if (choice.finish_reason === "tool_calls") {
     if (!Array.isArray(msg.tool_calls) || !msg.tool_calls.length || msg.tool_calls.length > 8) throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
     calls = msg.tool_calls.map((raw) => {
       const call = record(raw); const fn = record(call.function);
       if (call.type !== "function") throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
+      if (typeof call.id !== "string" || (/\s/.test(call.id) || [...call.id].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
       const args = boundedString(fn.arguments, 2048);
       let parsed: unknown; try { parsed = JSON.parse(args); } catch { throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE"); }
       record(parsed);
@@ -43,7 +52,7 @@ export function validateChatEnvelope(value: unknown) {
   const message: ChatCompletionAssistantMessageParam = { role: "assistant", content, ...(calls.length ? { tool_calls: calls } : {}) };
   return { message, calls, content, usage, model };
 }
-export function createChatCompletionsTransport(config: ChatCompletionsConfig, fetcher: typeof fetch = fetch, budget?: RequestBudget) {
+export function createChatCompletionsTransport(config: ChatCompletionsConfig, fetcher: typeof fetch = fetch, budget?: RequestBudget, allowLegacy = false) {
   assertModelConfig(config);
   if (config.protocol !== "chat_completions" || config.reasoning !== "none") throw new AgentRunError("AGENT_CHAT_CONFIG_INVALID");
   const client = createCompatibleClient(config, fetcher, budget);
@@ -51,7 +60,7 @@ export function createChatCompletionsTransport(config: ChatCompletionsConfig, fe
     try {
       const data = await client.chat.completions.create({ ...request, model: config.model, store: false, stream: false, n: 1,
         max_completion_tokens: Math.min(request.max_completion_tokens ?? 1800, 1800) }, { ...options, timeout: Math.min(options.timeout, 15000), maxRetries: 0 });
-      return validateChatEnvelope(data);
+      return validateChatEnvelope(data, allowLegacy);
     } catch (error) {
       if (options.signal.aborted) throw new AgentRunError("AGENT_ABORTED");
       if (error instanceof AgentRunError && error.code === "AGENT_INVALID_INPUT") throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");

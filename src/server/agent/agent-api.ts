@@ -1,3 +1,6 @@
+import { processingAccess } from "./processing-access.ts";
+import { createCompatibleLoopProviderFromEnv } from "./compatible-provider.ts";
+import { assertBusinessText } from "./model-payload-boundary.ts";
 import "server-only";
 import { assertSameOrigin, createRequestId, enforceRateLimit, failureResponse, PublicApiError, readJsonBody, requestClientIp, successResponse } from "../api-contract.ts";
 import { requireWebsiteSession } from "../auth/authorization.ts";
@@ -11,6 +14,7 @@ import type { LoopProvider } from "./loop-provider.ts";
 
 // Injection is server/test-only; HTTP cannot select dependencies, provider, actor or classification.
 export const agentApiDependencies = {
+  access: processingAccess, externalProvider: createCompatibleLoopProviderFromEnv,
   session: requireWebsiteSession, config: agentFeatureConfig,
   services: () => ({ savedPlans: createAccountSavedPlanReadService(), comparison: createAccountSavedPlanComparisonReadService() }),
   provider: (): LoopProvider => new LocalDemoProvider(),
@@ -31,11 +35,13 @@ export async function handleAgentRequest(request: Request, dependencies: Omit<ty
     const message = text(body.message, 2000); const snapshot = validatedSnapshot(body.context);
     // Everything received on this route is business context, even client-claimed synthetic data.
     // Key presence has no effect: do not construct an external client or read services when blocked.
-    if (!config.fakeAllowed) return noStore(successResponse({ status: "failed", error: "AGENT_MODEL_EGRESS_BLOCKED", contextRevision: snapshot?.contextRevision ?? null,
+    const egress = config.fakeAllowed ? { classification: "user_business_context" as const, localTestApproved: true } : await dependencies.access.authorize(actor.userId);
+    if (!egress) return noStore(successResponse({ status: "failed", error: "AGENT_MODEL_EGRESS_BLOCKED", contextRevision: snapshot?.contextRevision ?? null,
       runId: createRequestId(), answer: "External model access to business context is blocked by privacy policy.", intent: null, modelMode: "external",
       sources: [], tools: [], limitations: ["BLOCKED_PRIVACY"], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }, requestId));
-    const result = await runReadOnlyAgent({ message, context: { actor, snapshot, ...dependencies.services() }, provider: dependencies.provider(),
-      egress: { classification: "user_business_context", localTestApproved: config.fakeAllowed }, signal: request.signal });
+    if (!config.fakeAllowed) assertBusinessText(message);
+    const result = await runReadOnlyAgent({ message, context: { actor, snapshot, ...dependencies.services() }, provider: config.fakeAllowed ? dependencies.provider() : dependencies.externalProvider(),
+      egress, signal: request.signal });
     return noStore(successResponse(result, requestId));
   } catch (error) {
     // Never pass raw parse/session/provider errors, request bodies, or causes to diagnostic logging.

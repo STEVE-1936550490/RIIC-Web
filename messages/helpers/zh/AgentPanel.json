@@ -1,6 +1,6 @@
 {
   "title": "基建顾问 PoC",
-  "notice": "只读测试面板。FAKE / TEST 为本地确定性演示，不是模型生成的回答。真实业务数据禁止发送到外部模型。",
+  "notice": "只读顾问。FAKE / TEST 是本地确定性演示。外部处理需要获批的供应商和您的单独同意。",
   "commands": "测试命令：summary；room trade_1；room 贸易站 @0（0-based 班次）；list 标题；compare 左ID 右ID。同名方案请先 list，再明确 ID。",
   "question": "问题",
   "send": "发送",
@@ -10,5 +10,24 @@
   "retry": "重试",
   "tools": "工具状态",
   "sources": "来源",
-  "limitations": "限制"
+  "limitations": "限制",
+  "processingError": "外部处理不可用。请登录并重新打开面板核对同意状态。",
+  "processingLoading": "正在核对外部处理状态…",
+  "disabled": "顾问功能未启用。",
+  "fake_test": "FAKE / TEST — 本地演示，不调用外部模型。",
+  "external_unavailable": "外部供应商不可用：处理批准或部署条件尚未满足，不发送业务上下文。",
+  "consent_required": "需要您的明确同意。",
+  "consent_outdated": "隐私政策或供应商版本已变化，请重新阅读并同意。",
+  "consent_revoked": "已撤回同意，未来外部处理已阻断。",
+  "ready": "已按您当前的同意启用外部处理。",
+  "processingPurpose": "外部模型用于理解问题、选择只读工具，并根据裁剪后的结果生成解释。",
+  "processingData": "可能发送：您输入的问题、必要排班摘要、主动查询的房间排班与产出事实、保存方案标题和更新时间以及确定性差异。保存方案 ID 使用临时别名。",
+  "processingExcluded": "请勿在问题中填写凭据。上下文载荷排除 Cookie、API Key、森空岛凭据、完整干员 Box、原始日志和内部诊断。",
+  "processingWithdrawal": "您可以拒绝，核心功能继续可用。撤回阻止未来发送，不会删除供应商已经处理的信息。",
+  "privacyLink": "本站隐私政策",
+  "providerLink": "供应商信息（不代表处理批准）",
+  "grantProcessing": "同意并启用外部模型",
+  "declineProcessing": "暂不启用",
+  "revokeProcessing": "撤回外部模型处理同意",
+  "reviewProcessing": "重新查看外部处理说明"
 }

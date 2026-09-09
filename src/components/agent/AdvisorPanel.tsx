@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import ProcessingConsentCard from "./ProcessingConsentCard";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { createSafeCurrentPlanSnapshot, createSafeObservedScheduleSnapshot, parseAgentContextSnapshot, validateAgentContextSnapshot } from "@/server/agent/context-contract";
@@ -25,11 +26,16 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
   const [pending, setPending] = useState(false); const [error, setError] = useState<string | null>(null);
   const [responseMessage, setResponseMessage] = useState<string | null>(null);
   const [response, setResponse] = useState<AgentFinalResult | null>(null);
+  const [processingRevision, setProcessingRevision] = useState(0);
+  const [access, setAccess] = useState({ accountKey: props.accountKey, allowed: false });
+  const onAccess = useCallback((allowed: boolean) => setAccess({ accountKey: props.accountKey, allowed }), [props.accountKey]);
+  const canSend = access.accountKey === props.accountKey && access.allowed;
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const stale = response !== null && (!isAgentResultCurrent(response, revision) || responseMessage !== message);
   function stop() { controller.current?.abort(); controller.current = null; setPending(false); setError("AGENT_ABORTED"); }
   async function send() {
+    if (!canSend) return;
     controller.current?.abort(); const run = new AbortController(); controller.current = run;
     setPending(true); setResponse(null); setResponseMessage(message); setError(null);
     try {
@@ -43,6 +49,7 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
       const data = record(envelope.data);
       if (!Object.hasOwn(data, "runId")) throw new Error(text(data.error, 80));
       const result = parseAgentFinalResult(data);
+      if (result.error === "AGENT_MODEL_EGRESS_BLOCKED") { onAccess(false); setProcessingRevision((value) => value + 1); }
       if (result.contextRevision !== context.contextRevision) throw new Error("STALE_CONTEXT");
       if (!run.signal.aborted && controller.current === run) setResponse(result);
     } catch (caught) {
@@ -54,10 +61,11 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
     <SheetContent side="right" className="sm:max-w-md" data-agent-panel>
       <SheetHeader><SheetTitle>{t("title")}</SheetTitle><SheetDescription>{t("notice")}</SheetDescription></SheetHeader>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+        <ProcessingConsentCard key={`${props.accountKey}-${open}-${processingRevision}`} onAccess={onAccess} onRevoke={() => { stop(); setResponse(null); }} />
         <p className="text-xs text-muted-foreground">{t("commands")}</p>
         <label htmlFor={`${id}-message`}>{t("question")}</label>
         <textarea id={`${id}-message`} maxLength={2000} value={message} onChange={(event) => setMessage(event.target.value)} className="min-h-24 rounded border bg-background p-2" />
-        <div className="flex gap-2"><Button onClick={() => void send()} disabled={pending || !message.trim()}>{t("send")}</Button>
+        <div className="flex gap-2"><Button onClick={() => void send()} disabled={!canSend || pending || !message.trim()}>{t("send")}</Button>
           <Button variant="outline" onClick={stop} disabled={!pending}>{t("stop")}</Button></div>
         <div aria-live="polite">
           {pending && <p role="status">{t("loading")}</p>}
@@ -72,7 +80,7 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
             <ul aria-label={t("limitations")}>{response.limitations.map((item) => <li className="text-xs" key={item}>{item}</li>)}</ul>
             <p className="break-all text-xs">runId: {response.runId}</p>
           </div>}
-          {(error || stale || response?.status === "failed") && <Button variant="outline" disabled={pending || !message.trim()} onClick={() => void send()}>{t("retry")}</Button>}
+          {(error || stale || response?.status === "failed") && <Button variant="outline" disabled={!canSend || pending || !message.trim()} onClick={() => void send()}>{t("retry")}</Button>}
         </div>
       </div>
     </SheetContent>

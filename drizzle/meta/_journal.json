@@ -113,6 +113,13 @@
       "when": 1788615031833,
       "tag": "0015_release_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788859134275,
+      "tag": "0016_agent_processing_consent",
+      "breakpoints": true
     }
   ]
 }

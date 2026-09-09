@@ -96,3 +96,9 @@ node scripts/agent-offline-command.mjs demo
 只运行内置 synthetic actor、内存仓库及真实 M2；普通业务 API 不能通过页面参数变成 synthetic。记录代码 SHA、未提交补丁标识、mode、stage、请求计数、HTTP 状态、安全分类及 capability 结果；不要归档原始请求/响应、Key、完整端点或隐藏推理。usage 缺失为 unavailable，reported model 只是端点声明，单次 PASS 不证明普遍 strict enforcement。`store=false` 不表示供应商零保留或不训练。
 
 真实端点验收和业务隐私放行分别授权，均不由本地工程 COMPLETE 自动获得。MoMA 历史两次验收、8 次 HTTP 尝试及 UNRESOLVED 根因保留在 [状态文档](implementation-status.md)。
+
+## 2026-09-08 兼容补丁离线复核
+
+现有 synthetic 入口已接入 `--chat-legacy-compat` 和三个有上界的超时参数；不依赖临时 broker，不读取旧 `ACCEPTANCE_*` 环境变量。普通测试继续通过显式环境 wrapper 执行。完整字段、解析差异和历史证据限制见 [兼容说明](compatible-provider.md)。此处不提供或运行新的真实端点命令；历史 26/100 不是调用授权。
+
+共享 Chat adapter、Loop 和房间工具均被 Agent API 依赖，影响服务端打包链，因此本轮需要最终源码的隔离 cloud-enabled webpack build 和 Agent E2E，不能仅以没有 UI 修改跳过。浏览器测试仍仅证明 mock UI；后端与协议验证由实际 M2 + mock HTTP 回归证明。

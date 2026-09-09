@@ -845,3 +845,30 @@ test("database admission serializes hard limits and reports deterministic queue 
     await pool.end();
   }
 });
+
+test("Agent processing consent storage is independent, versioned, user-scoped and cascades on account deletion", async () => {
+  const { registerHooks } = await import("node:module");
+  const hook = registerHooks({ resolve(specifier, context, nextResolve) {
+    return specifier === "server-only" ? { shortCircuit: true, url: "data:text/javascript,export{}" } : nextResolve(specifier, context);
+  } });
+  const pool = new Pool({ connectionString: databaseUrl, max: 2 });
+  const database = drizzle({ client: pool, schema });
+  const { createAgentConsentStore } = await import("./agent/processing-consent-store.ts");
+  const { consentBinding, consentState } = await import("./agent/processing-consent.ts");
+  const { approvedTestProfile } = await import("./agent/egress-test-support.ts");
+  const store = createAgentConsentStore(() => database);
+  const ids = [randomUUID(), randomUUID()];
+  try {
+    for (const id of ids) await pool.query('INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at) VALUES ($1,$1,$2,true,now(),now())', [id, `${id}@example.invalid`]);
+    const binding = consentBinding(approvedTestProfile);
+    await store.grant({ userId: ids[0], ...binding, grantedAt: new Date(), revokedAt: null });
+    assert.equal(consentState(await store.get(ids[0]), ids[0], binding), "current");
+    assert.equal(await store.get(ids[1]), null);
+    await store.revoke(ids[1]); assert.equal(consentState(await store.get(ids[0]), ids[0], binding), "current");
+    await store.revoke(ids[0]); assert.equal(consentState(await store.get(ids[0]), ids[0], binding), "revoked");
+    await store.grant({ userId: ids[0], ...binding, grantedAt: new Date(), revokedAt: null });
+    assert.equal(consentState(await store.get(ids[0]), ids[0], { ...binding, privacyVersion: "next" }), "outdated");
+    assert.equal(consentState(await store.get(ids[0]), ids[0], { ...binding, providerProfileVersion: "next" }), "outdated");
+    await pool.query('DELETE FROM "user" WHERE id=$1', [ids[0]]); assert.equal(await store.get(ids[0]), null);
+  } finally { await pool.query('DELETE FROM "user" WHERE id = ANY($1::text[])', [ids]).catch(() => undefined); await pool.end(); hook.deregister(); }
+});

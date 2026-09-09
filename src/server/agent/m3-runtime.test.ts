@@ -85,3 +85,33 @@ test("provider cannot forge sources, oversized answers, or malformed tool calls"
     assert.equal(result.error, "AGENT_MODEL_INVALID_OUTPUT"); assert.deepEqual(result.sources, []);
   }
 });
+
+test("synthetic deadlines are bounded, request-local, and cannot raise normal API budgets", async (t) => {
+  const timers: number[] = []; const original = globalThis.setTimeout;
+  t.mock.method(globalThis, "setTimeout", (...args: Parameters<typeof setTimeout>) => { timers.push(Number(args[1])); return original(...args); });
+  for (const syntheticAcceptance of [false, true, false]) {
+    timers.length = 0;
+    const result = await run([call(), final], { syntheticAcceptance, deadlines: { totalMs: 60000, toolMs: 12000 } });
+    assert.equal(result.status, "ok");
+    const maximum = syntheticAcceptance ? 60000 : 20000;
+    assert.ok(timers[0] <= maximum && timers[0] > maximum - 1000);
+    assert.ok(timers.includes(syntheticAcceptance ? 12000 : 5000));
+  }
+  timers.length = 0;
+  assert.equal((await run([final])).status, "ok"); assert.ok(timers[0] <= 20000 && timers[0] > 19000);
+  for (const deadlines of [{ totalMs: Infinity }, { totalMs: 60001 }, { toolMs: 12001 }, { toolMs: NaN }]) assert.equal((await run([final], { syntheticAcceptance: true, deadlines })).error, "AGENT_MODEL_CONFIG_INVALID");
+  assert.equal((await run([final], { syntheticAcceptance: true, egress: { classification: "user_business_context", localTestApproved: true } })).error, "AGENT_MODEL_CONFIG_INVALID");
+});
+
+test("synthetic custom total budget bounds tool waiting and preserves caller cancellation", async () => {
+  const hang = async () => new Promise<never>(() => {});
+  const ctx = syntheticExecution(); ctx.savedPlans = { list: hang };
+  const result = await run([call("saved_plan.list", { query: null }), final], { context: ctx, syntheticAcceptance: true, deadlines: { totalMs: 15, toolMs: 12000 } });
+  assert.equal(result.status, "failed"); assert.equal(result.tools[0].code, "AGENT_TOOL_TIMEOUT");
+  const controller = new AbortController(); let providerAborted = false;
+  const pending = run([], { syntheticAcceptance: true, deadlines: { totalMs: 60000 }, signal: controller.signal, provider: { kind: "fake", async next(request) {
+    request.signal.addEventListener("abort", () => { providerAborted = true; }, { once: true });
+    controller.abort(); return hang();
+  } } });
+  assert.equal((await pending).error, "AGENT_ABORTED"); assert.equal(providerAborted, true);
+});

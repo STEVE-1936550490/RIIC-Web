@@ -42,3 +42,13 @@ Build and browser work must use an isolated copy containing the current uncommit
 The cloud-enabled webpack path is validated in this closeout. Historical cloud-disabled alias/runtime (`setActiveShift` on null) and Turbopack CSS-worker EPERM records are not claims of permanent framework defects and do not replace this round’s required webpack evidence.
 
 The historical REAL_OPENAI_SMOKE remains PENDING_NO_API_KEY, but is no longer the active acceptance target or a requirement for an official key. Historical M3.5A REAL_RESPONSES_ENDPOINT_VALIDATION is CAPABILITY_INCOMPATIBLE with ROOT_CAUSE=UNRESOLVED, as recorded in the newer status closeout. M3.5B REAL_ENDPOINT_VALIDATION is NOT_RUN because real model calls are not authorized; both protocol commands default offline. REAL_USER_CONTEXT_TO_EXTERNAL_MODEL remains BLOCKED_PRIVACY. Next: separately authorize and accept the chosen endpoint using synthetic fixtures, then independently review privacy; no M4, writes, solver, RAG, memory or multi-agent work.
+
+## M3.6 External Model Business Data Egress Boundary
+
+2026-09-08 增加独立的 `processing-access` / `provider-data-policy` / `processing-consent` 发布边界。在 external provider factory 与领域 services 构造之前，API 核对 feature、business kill switch、经审阅 Profile、endpoint/protocol/Profile version、Privacy/Egress version 以及 Session 用户当前 Consent。拒绝时不读取为模型准备的额外领域数据、不构造客户端、不发送模型 HTTP。
+
+Gate 产生 WeakMap 认证的进程内许可，绑定用户和单个 run；克隆/伪造许可不能使用。Loop 每轮白名单构造载荷，核对许可并重读 Consent；两协议 adapter 再次核对 endpoint、protocol、run 和载荷完整性。普通 Run/Tool/token/result/count/cancel 预算不变。已开始的 HTTP 无法追回，但撤回会阻断以后开始的发送。
+
+`model-payload-boundary` 路径级投影独立于领域 DTO；额外字段拒绝，已分类不必要字段删除，saved plan IDs 本轮别名化。domain service 仍收到经映射的真实 ID 并执行原 consent/ownership/retention。真实 sources 留在 API DTO，不由模型生成。完整快照没有直接进入 Prompt。Responses encrypted continuation 和 M1 classifier 未批准业务载荷，保留 synthetic 行为且 business fail-closed。
+
+新增 `/api/agent/consent` 及独立迁移只存政策状态，不给 Agent 新工具。面板显式 opt-in、拒绝和撤回，核心工作台不依赖该选择。细节见 [Data Map](./model-egress-data-map.md)、[Provider 证据](./provider-data-processing.md)、[Runbook](./external-processing-runbook.md)。当前目录没有 approved Provider，MoMA 仍 `BLOCKED_UNVERIFIED_PROCESSING`。

@@ -3,6 +3,9 @@ import type { AgentFinalResult } from "../src/server/agent/run-contract";
 import { mockApis, mockAnonymousWebsiteSession, seedV4Session, planData } from "./production-readiness.fixture";
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", (route) => new URL(route.request().url()).origin === baseURL ? route.continue() : route.abort());
+  await page.route("**/api/agent/consent*", (route) => {
+    route.fulfill({ json: { success: true, data: { state: "fake_test", provider: null, binding: null } }});
+  });
 });
 function responseFor(route: Route): { success: boolean; requestId: string; data: AgentFinalResult } {
   const request = route.request().postDataJSON();
@@ -105,4 +108,33 @@ test("late response after close or changed question is never shown as current", 
   await panel.getByLabel("问题", { exact: true }).fill("room trade_1 @1");
   await pending!.fulfill({ json: responseFor(pending!) });
   await expect(panel.getByRole("alert")).toContainText("STALE_CONTEXT"); await expect(panel.locator("[data-agent-answer]")).toHaveCount(0);
+});
+
+test("processing consent: required, grant, ready, revoke, outdated and provider unavailable (mock UI)", async ({ page }) => {
+  await mockApis(page); await mockAnonymousWebsiteSession(page); await seedV4Session(page, planData);
+  let state = "consent_required"; let grants = 0; let revokes = 0; let modelRequests = 0;
+  const binding = { consentVersion: "synthetic-consent", privacyVersion: "synthetic-privacy", providerProfileId: "synthetic", providerProfileVersion: "synthetic-v1", dataEgressPolicyVersion: "synthetic-egress" };
+  await page.route("**/api/agent/consent", (route) => {
+    if (route.request().method() === "POST") { expect(route.request().postDataJSON()).toEqual({ accept: true, binding }); grants++; state = "ready"; }
+    if (route.request().method() === "DELETE") { revokes++; state = "consent_revoked"; }
+    return route.fulfill({ json: { success: true, data: { state, provider: { displayName: "Synthetic Provider", links: ["https://provider.example.invalid/policy"] }, binding: state === "external_unavailable" ? null : binding } } });
+  });
+  await page.route("**/api/agent", (route) => { modelRequests++; return route.fulfill({ json: responseFor(route) }); });
+  await page.goto("/"); await expect(page.locator('[data-workbench-hydrated="true"]')).toBeVisible();
+  await page.locator("[data-agent-open]").click(); const panel = page.locator("[data-agent-panel]");
+  await panel.getByLabel("问题", { exact: true }).fill("summary"); const send = panel.getByRole("button", { name: "发送", exact: true });
+  await expect(panel.locator('[data-agent-processing="consent_required"]')).toBeVisible(); await expect(send).toBeDisabled();
+  expect(grants).toBe(0); await panel.getByRole("button", { name: "暂不启用", exact: true }).click(); await expect(send).toBeDisabled(); expect(modelRequests).toBe(0);
+  await panel.getByRole("button", { name: "重新查看外部处理说明", exact: true }).click();
+  await panel.getByRole("button", { name: "同意并启用外部模型", exact: true }).click();
+  await expect(panel.locator('[data-agent-processing="ready"]')).toBeVisible(); await expect(send).toBeEnabled(); expect(grants).toBe(1);
+  await send.click(); await expect(panel.locator("[data-agent-answer]")).toBeVisible(); expect(modelRequests).toBe(1);
+  await panel.getByRole("button", { name: "撤回外部模型处理同意", exact: true }).click();
+  await expect(panel.locator('[data-agent-processing="consent_revoked"]')).toBeVisible(); await expect(send).toBeDisabled(); expect(revokes).toBe(1); expect(modelRequests).toBe(1);
+  for (const next of ["consent_outdated", "external_unavailable"]) {
+    await panel.getByRole("button", { name: "Close", exact: true }).click(); state = next;
+    await page.locator("[data-agent-open]").click(); await expect(panel.locator(`[data-agent-processing="${next}"]`)).toBeVisible(); await expect(send).toBeDisabled();
+  }
+  await expect(panel.getByRole("button", { name: "同意并启用外部模型", exact: true })).toHaveCount(0);
+  expect(modelRequests).toBe(1);
 });

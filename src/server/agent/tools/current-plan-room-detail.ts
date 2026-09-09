@@ -24,7 +24,7 @@ export const CURRENT_PLAN_ROOM_DETAIL_TOOL = {
     type: "object",
     properties: {
       roomRef: { type: "string", minLength: 1, maxLength: MAX_CURRENT_PLAN_ROOM_REF_LENGTH },
-      shiftIndex: { anyOf: [{ type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER }, { type: "null" }] },
+      shiftIndex: { description: "Use null for the current/active shift or when no specific shift is requested. Use a zero-based integer only for an explicitly requested shift.", anyOf: [{ type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER }, { type: "null" }] },
     },
     required: ["roomRef", "shiftIndex"],
     additionalProperties: false,

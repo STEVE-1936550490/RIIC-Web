@@ -76,6 +76,7 @@ export class OpenAIModelProvider implements AgentModelProvider {
 
   async generateStructuredOutput(request: AgentModelRequest): Promise<AgentModelProviderResult> {
     assertModelEgress("external", request.egress ?? { classification: "user_business_context", localTestApproved: false });
+    if (request.egress?.classification !== "synthetic") throw new AgentRunError("AGENT_MODEL_EGRESS_BLOCKED");
     request.signal.throwIfAborted();
     const startedAt = this.now();
     const openAIRequest: OpenAIResponseRequest = {

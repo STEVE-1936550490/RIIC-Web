@@ -1,3 +1,4 @@
+import { assertBusinessSend } from "./business-egress.ts";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions/completions";
 import { assertModelEgress } from "./egress-policy.ts";
 import { AgentRunError } from "./run-contract.ts";
@@ -7,6 +8,23 @@ import type { AgentModelProvider, AgentModelRequest } from "./model-provider.ts"
 import { READ_ONLY_ADVISOR_INSTRUCTIONS } from "./provider-instructions.ts";
 
 type Transport = ReturnType<typeof createChatCompletionsTransport>;
+function parseStructuredJSON(raw: string): unknown {
+  try { return JSON.parse(raw); }
+  catch { throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE"); }
+}
+
+function createStructuredRequest(config: ChatCompletionsConfig, request: AgentModelRequest) {
+  return {
+    model: config.model,
+    messages: [
+      { role: "system" as const, content: `Return exactly one JSON object matching this schema. Include every required field, use null for absent references, and do not add other fields or markdown. Schema: ${JSON.stringify(request.structuredOutput.schema)}` },
+      ...request.messages.map(({ role, content }) => ({ role, content })),
+    ],
+    max_completion_tokens: request.maxOutputTokens ?? 1800,
+    store: false,
+    response_format: { type: "json_schema" as const, json_schema: { name: request.structuredOutput.name, schema: request.structuredOutput.schema, strict: true } },
+  };
+}
 /** Protocol history only. Business authorization, tools, budgets and sources stay in the shared loop. */
 class ChatCompletionsLoopProvider implements LoopProvider {
   readonly kind = "external";
@@ -23,6 +41,7 @@ class ChatCompletionsLoopProvider implements LoopProvider {
   constructor(config: ChatCompletionsConfig, transport: Transport) { this.config = config; this.transport = transport; }
   async next(request: LoopRequest) {
     assertModelEgress(this.kind, request.egress);
+    await assertBusinessSend(request.egress, request, this.config);
     if (request.signal.aborted) throw new AgentRunError("AGENT_ABORTED");
     const run = request.runId ?? request.message;
     if (this.closed || this.busy || (this.run !== undefined && this.run !== run)) throw new AgentRunError("AGENT_CHAT_RUN_REUSE");
@@ -71,14 +90,13 @@ export function createChatCompletionsLoopProvider(config: ChatCompletionsConfig,
 export function createChatCompletionsModelProvider(config: ChatCompletionsConfig, transport = createChatCompletionsTransport(config)): AgentModelProvider {
   return { async generateStructuredOutput(request: AgentModelRequest) {
     assertModelEgress("external", request.egress ?? { classification: "user_business_context", localTestApproved: false });
+    if (request.egress?.classification !== "synthetic") throw new AgentRunError("AGENT_MODEL_EGRESS_BLOCKED");
     if (request.signal.aborted) throw new AgentRunError("AGENT_ABORTED");
     const startedAt = performance.now();
-    const result = await transport.create({ model: config.model, messages: request.messages.map(({ role, content }) => ({ role, content })),
-      response_format: { type: "json_schema", json_schema: { name: request.structuredOutput.name, schema: request.structuredOutput.schema, strict: true } },
-      max_completion_tokens: request.maxOutputTokens ?? 1800, store: false,
-    }, { signal: request.signal, timeout: request.timeoutMs, maxRetries: 0 });
+    const result = await transport.create(createStructuredRequest(config, request), { signal: request.signal, timeout: request.timeoutMs, maxRetries: 0 });
     if (result.calls.length || !result.content) throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
-    let output: unknown; try { output = JSON.parse(result.content); } catch { throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE"); }
+    const output = parseStructuredJSON(result.content);
+    if (output === null) throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
     return { output, metadata: { provider: "chat_completions_compatible", model: result.model, usage: result.usage, latencyMs: Math.max(0, performance.now() - startedAt) } };
   } };
 }

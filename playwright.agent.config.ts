@@ -14,7 +14,7 @@ export default defineConfig({
   testDir: "./e2e", testMatch: "agent-poc.spec.ts", workers: 1, timeout: 90000,
   outputDir: ".tmp/agent-e2e", reporter: "list", use: { trace: "off", screenshot: "off" },
   projects: [
-    { name: "agent-enabled", grep: /panel interaction|three M0|late response/, use: { ...devices["Desktop Chrome"], baseURL: `http://127.0.0.1:${enabledPort}` } },
+    { name: "agent-enabled", grep: /panel interaction|three M0|late response|processing consent/, use: { ...devices["Desktop Chrome"], baseURL: `http://127.0.0.1:${enabledPort}` } },
     { name: "agent-disabled", grep: /production flag disabled/, use: { ...devices["Desktop Chrome"], baseURL: `http://127.0.0.1:${disabledPort}` } },
   ],
   webServer: [true, false].map((enabled) => ({

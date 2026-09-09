@@ -390,3 +390,15 @@ export const telemetryEvent = appSchema.table("telemetry_event", {
   index("telemetry_event_user_created_at_idx").on(table.userId, table.createdAt),
   index("telemetry_event_owner_created_at_idx").on(table.dataOwnerTag, table.createdAt),
 ]);
+
+/** Independent AI processing opt-in. Revocation never deletes business plans. */
+export const agentProcessingConsent = appSchema.table("agent_processing_consent", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  consentVersion: text("consent_version").notNull(),
+  privacyVersion: text("privacy_version").notNull(),
+  providerProfileId: text("provider_profile_id").notNull(),
+  providerProfileVersion: text("provider_profile_version").notNull(),
+  dataEgressPolicyVersion: text("data_egress_policy_version").notNull(),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});

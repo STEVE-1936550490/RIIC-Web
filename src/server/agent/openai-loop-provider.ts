@@ -1,3 +1,4 @@
+import { assertBusinessSend } from "./business-egress.ts";
 import { READ_ONLY_ADVISOR_INSTRUCTIONS } from "./provider-instructions.ts";
 import type OpenAI from "openai";
 import type { ResponseInputItem, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
@@ -25,12 +26,15 @@ export class OpenAILoopProvider implements LoopProvider {
   private closed = false;
   private readonly model: string;
   private readonly transport: ToolCallingTransport;
+  private readonly binding?: ResponsesConfig;
   private readonly reasoning: ResponsesConfig["reasoning"];
-  constructor(model: string, transport: ToolCallingTransport, reasoning: ResponsesConfig["reasoning"] = "none") {
-    this.model = model; this.transport = transport; this.reasoning = reasoning;
+  constructor(model: string, transport: ToolCallingTransport, reasoning: ResponsesConfig["reasoning"] = "none", binding?: ResponsesConfig) {
+    this.binding = binding; this.model = model; this.transport = transport; this.reasoning = reasoning;
   }
   async next(request: LoopRequest) {
-    assertModelEgress(this.kind, request.egress); request.signal.throwIfAborted();
+    assertModelEgress(this.kind, request.egress);
+    await assertBusinessSend(request.egress, request, this.binding);
+    if (request.egress.classification !== "synthetic" && this.reasoning !== "none") throw new AgentRunError("AGENT_MODEL_EGRESS_BLOCKED"); request.signal.throwIfAborted();
     const run = request.runId ?? request.message;
     if (this.closed || this.busy || (this.run !== undefined && this.run !== run)) throw new AgentRunError("AGENT_RESPONSES_RUN_REUSE");
     this.run = run; this.busy = true;
@@ -82,7 +86,7 @@ export class OpenAILoopProvider implements LoopProvider {
   }
 }
 export function createResponsesLoopProvider(config: ResponsesConfig, transport = createResponsesTransport(config)): OpenAILoopProvider {
-  return new OpenAILoopProvider(config.model, transport, config.reasoning);
+  return new OpenAILoopProvider(config.model, transport, config.reasoning, config);
 }
 /** Historical export: no apiKey/model positional arguments and no implicit official endpoint. */
 export function createSyntheticOpenAILoopProvider(env: ResponsesEnvironment = process.env): OpenAILoopProvider {
