@@ -9,6 +9,48 @@ const { agentFeatureConfig } = await import("./feature-config.ts");
 const { parseAgentFinalResult } = await import("./run-contract.ts");
 const run = (script: ConstructorParameters<typeof ScriptedLoopProvider>[0], extra: Partial<Parameters<typeof runReadOnlyAgent>[0]> = {}) => runReadOnlyAgent({ message: "synthetic question", context: syntheticExecution(), egress: syntheticEgress, provider: new ScriptedLoopProvider(script), ...extra });
 
+test("normal run survives 21.5s but aborts at 60s and discards a late final", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
+  let started!: () => void; const ready = new Promise<void>((resolve) => { started = resolve; });
+  let finish!: (value: { decision: typeof final }) => void;
+  let providerSignal!: AbortSignal; let settled = false;
+  const pending = run([], { provider: { kind: "fake", next(request) {
+    providerSignal = request.signal; started();
+    return new Promise((resolve) => { finish = resolve; });
+  } } }).then((value) => { settled = true; return value; });
+  await ready;
+  now = 21500; t.mock.timers.tick(21500);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(settled, false); assert.equal(providerSignal.aborted, false);
+  now = 59999; t.mock.timers.tick(38499);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(settled, false);
+  now = 60000; t.mock.timers.tick(1);
+  const result = await pending;
+  assert.equal(result.error, "AGENT_RUN_TIMEOUT"); assert.equal(result.status, "failed");
+  assert.equal(providerSignal.aborted, true);
+  finish({ decision: final });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(result.error, "AGENT_RUN_TIMEOUT"); assert.notEqual(result.answer, final.answer);
+});
+
+test("caller cancellation before the normal 60s deadline remains authoritative and private", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let now = 0; t.mock.method(performance, "now", () => now);
+  const caller = new AbortController(); let providerSignal!: AbortSignal;
+  let started!: () => void; const ready = new Promise<void>((resolve) => { started = resolve; });
+  const pending = run([], { signal: caller.signal, provider: { kind: "fake", next(request) {
+    providerSignal = request.signal; started(); return new Promise<never>(() => {});
+  } } });
+  await ready; now = 59999; t.mock.timers.tick(59999);
+  caller.abort("private-caller-reason");
+  const result = await pending;
+  assert.equal(result.error, "AGENT_ABORTED"); assert.equal(providerSignal.aborted, true);
+  assert.ok(!JSON.stringify(result).includes("private-caller-reason"));
+});
+
 test("registry contains exactly four read-only tools, strict arguments and identical execution policy", async () => {
   const ctx = syntheticExecution();
   assert.deepEqual(visibleTools(ctx).map((t) => t.name), ["current_plan.get_summary", "current_plan.get_room_detail", "saved_plan.list", "saved_plan.compare"]);
@@ -93,12 +135,12 @@ test("synthetic deadlines are bounded, request-local, and cannot raise normal AP
     timers.length = 0;
     const result = await run([call(), final], { syntheticAcceptance, deadlines: { totalMs: 60000, toolMs: 12000 } });
     assert.equal(result.status, "ok");
-    const maximum = syntheticAcceptance ? 60000 : 20000;
+    const maximum = 60000;
     assert.ok(timers[0] <= maximum && timers[0] > maximum - 1000);
     assert.ok(timers.includes(syntheticAcceptance ? 12000 : 5000));
   }
   timers.length = 0;
-  assert.equal((await run([final])).status, "ok"); assert.ok(timers[0] <= 20000 && timers[0] > 19000);
+  assert.equal((await run([final])).status, "ok"); assert.ok(timers[0] <= 60000 && timers[0] > 59000);
   for (const deadlines of [{ totalMs: Infinity }, { totalMs: 60001 }, { toolMs: 12001 }, { toolMs: NaN }]) assert.equal((await run([final], { syntheticAcceptance: true, deadlines })).error, "AGENT_MODEL_CONFIG_INVALID");
   assert.equal((await run([final], { syntheticAcceptance: true, egress: { classification: "user_business_context", localTestApproved: true } })).error, "AGENT_MODEL_CONFIG_INVALID");
 });

@@ -1,6 +1,6 @@
 import { parsePreviewResult, type PreviewResult } from "./preview-contract.ts";
 // Shared wire contract. No server secrets, SDK objects or business payloads.
-export const AGENT_RUN_LIMITS = Object.freeze({ steps: 5, calls: 6, toolMs: 5000, totalMs: 20000, resultBytes: 16384, observationBytes: 65536, tokens: 12000, answerChars: 3000 });
+export const AGENT_RUN_LIMITS = Object.freeze({ steps: 5, calls: 6, toolMs: 5000, totalMs: 60000, resultBytes: 16384, observationBytes: 65536, tokens: 12000, answerChars: 3000 });
 export class AgentRunError extends Error {
   readonly code: string;
   constructor(code: string) { super(code); this.name = "AgentRunError"; this.code = code; }

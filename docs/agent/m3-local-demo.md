@@ -1,6 +1,6 @@
 # M3 本地演示与验收操作
 
-当前交付是安全只读 PoC：四个工具、共享 Loop/API/右侧面板及两个显式协议适配器。真实模型验收本轮未授权、未执行；真实业务上下文外发仍为 `BLOCKED_PRIVACY`。演示使用确定性语法，不代表任意自然语言或真实模型智能已验证。
+当前 M4 保持 COMPLETE，四个 M0 read-only tools 与既有受限 `plan.preview` 边界不变。2026-09-15 已授权的 GLM-5.3 `explicit_chat_legacy` full synthetic 真实验收完整 PASS；此浏览器演示仍使用 mock，不能证明任意问法或真实业务可用。最终收口轮不再调用模型，真实业务上下文外发继续为 `BLOCKED_PROVIDER_POLICY`。正常 Agent 总预算为 60000 ms、单 HTTP 15000 ms、单工具 5000 ms；浏览器不能传 deadline override。
 
 ## 隔离副本及质量门禁
 
@@ -73,32 +73,20 @@ node scripts/agent-offline-command.mjs demo
 
 需要用户另行明确授权目标 endpoint + protocol + model、模式和 HTTP 预算。基本验收最多 1 次尝试；full 单次运行最多 12 次（含失败），不是 basic 后自动追加 12 次。无重试、fallback、模型替换或追求 PASS 的重跑。缺配置/未 opt-in 为 0；basic 失败即停止。full 在 basic 成功后独立判断 strict/current/saved；认证/限流等终止后余项为 BLOCKED。
 
-以下 Bash 示例域名刻意不可用，模型是占位值。只在另外授权后替换非秘密项；Key 用隐藏输入或安全注入，不写入参数或 Git。每次只选择一个命令；不要同时执行 basic/full。外层子 shell 退出后变量消失：
+每次只授权并运行一个模式，不连续或自动执行 basic/full。
 
-```bash
-(
-  export AGENT_MODEL_PROTOCOL=responses
-  # Chat 使用：export AGENT_MODEL_PROTOCOL=chat_completions
-  export AGENT_MODEL_BASE_URL='https://gateway.example.invalid/custom/v1'
-  export AGENT_MODEL_ID='placeholder-model'
-  export AGENT_MODEL_REASONING_CONTINUATION=none
-  unset AGENT_MODEL_ALLOW_LOOPBACK_HTTP
-  read -r -s -p 'Endpoint API key: ' AGENT_MODEL_API_KEY
-  export AGENT_MODEL_API_KEY
-  RUN_COMPATIBLE_AGENT_SMOKE=1 npm run smoke:agent:compatible -- --mode basic
-  # 另行授权 full 时，用下面一行替换上一行，不连续执行两者：
-  # RUN_COMPATIBLE_AGENT_SMOKE=1 npm run smoke:agent:compatible -- --mode full
-)
-```
+真实 acceptance 只能由服务器 operator broker 启动。获得本轮明确授权后，operator 创建绑定 source、endpoint hash、protocol、model、mode、compatibilityMode、maximumAttempts 和 expiry 的单次授权，再执行 broker 的 `--run`。具体命令与账本维护见服务器仓库外 `operator/README.md`。
+
+官方 TS smoke 命令只接受 broker 注入的 loopback URL 与单 run token；不再接受真实 Key + direct upstream URL。不要从 Secret 文件读取 Key 给 runner。broker 逐 HTTP 原子计费，失败或可能已发送的请求不退款；runner 原有每次 1/12 次预算仍保留。旧 /tmp 脚本仅作历史证据。
 
 统一入口只接受自己的 `RUN_COMPATIBLE_AGENT_SMOKE=1`。专项入口 `smoke:agent:responses` / `smoke:agent:chat-completions` 分别要求 `RUN_RESPONSES_AGENT_SMOKE=1` / `RUN_CHAT_COMPLETIONS_AGENT_SMOKE=1`，并拒绝协议不符；同样支持两个模式、默认 basic。旧 OpenAI smoke 只给迁移提示，不会启用新协议。
 
 只运行内置 synthetic actor、内存仓库及真实 M2；普通业务 API 不能通过页面参数变成 synthetic。记录代码 SHA、未提交补丁标识、mode、stage、请求计数、HTTP 状态、安全分类及 capability 结果；不要归档原始请求/响应、Key、完整端点或隐藏推理。usage 缺失为 unavailable，reported model 只是端点声明，单次 PASS 不证明普遍 strict enforcement。`store=false` 不表示供应商零保留或不训练。
 
-真实端点验收和业务隐私放行分别授权，均不由本地工程 COMPLETE 自动获得。MoMA 历史两次验收、8 次 HTTP 尝试及 UNRESOLVED 根因保留在 [状态文档](implementation-status.md)。
+真实端点验收和业务隐私放行分别授权，均不由本地工程 COMPLETE 自动获得。最新 controlled full synthetic 验收使用 8 次 HTTP，current 两轮、saved 三轮均 PASS；standard profile 仍为 `BLOCKED_OPTIONAL_REASONING_EXTENSION`，服务端 strict enforcement 为 `NOT_PROVEN`。历史失败与最新成功分开记录在 [状态文档](implementation-status.md)。
 
 ## 2026-09-08 兼容补丁离线复核
 
-现有 synthetic 入口已接入 `--chat-legacy-compat` 和三个有上界的超时参数；不依赖临时 broker，不读取旧 `ACCEPTANCE_*` 环境变量。普通测试继续通过显式环境 wrapper 执行。完整字段、解析差异和历史证据限制见 [兼容说明](compatible-provider.md)。此处不提供或运行新的真实端点命令；历史 26/100 不是调用授权。
+现有 synthetic 入口已接入 `--chat-legacy-compat` 和三个有上界的超时参数；真实执行必须经过 operator broker，不读取旧 `ACCEPTANCE_*` 环境变量。普通测试继续通过显式环境 wrapper 执行。完整字段、解析差异和历史证据限制见 [兼容说明](compatible-provider.md)。此处不提供或运行新的真实端点命令；历史 26/100 不是调用授权。
 
 共享 Chat adapter、Loop 和房间工具均被 Agent API 依赖，影响服务端打包链，因此本轮需要最终源码的隔离 cloud-enabled webpack build 和 Agent E2E，不能仅以没有 UI 修改跳过。浏览器测试仍仅证明 mock UI；后端与协议验证由实际 M2 + mock HTTP 回归证明。

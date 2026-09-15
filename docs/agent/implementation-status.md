@@ -1,5 +1,65 @@
 # Agent Implementation Status
 
+## M4 post-closeout compatibility / real-model acceptance follow-up — 2026-09-15
+
+**M4 remains COMPLETE.** This follow-up closes compatibility diagnostics, controlled synthetic acceptance and the generic Agent run budget on the existing M4 work line. It introduces no new milestone. This section supersedes older current-state statements below; historical evidence and its limitations remain historical.
+
+| Current state | Result |
+| --- | --- |
+| M4_ENGINEERING_CLOSEOUT | COMPLETE |
+| GLM53_TOOL_CALLING_CAPABILITY / FUNCTION_TOOL_LOOP | PASS / PASS |
+| CURRENT_SCENARIO / SAVED_SCENARIO | PASS / PASS |
+| EXPLICIT_CHAT_LEGACY_ACCEPTANCE | PASS |
+| STANDARD_PROFILE_ACCEPTANCE | BLOCKED_OPTIONAL_REASONING_EXTENSION |
+| BASIC_COMPLETION / JSON_OUTPUT | PASS / PASS |
+| STRUCTURED_OUTPUT_CLIENT_VALIDATION | PASS |
+| SERVER_STRICT_ENFORCEMENT | NOT_PROVEN |
+| MODEL_HTTP_TIMEOUT_MS / NORMAL_AGENT_TOTAL_MS / TOOL_TIMEOUT_MS | 15000 / 60000 / 5000 |
+| MODEL_STEPS / TOOL_CALLS / REPORTED_TOKEN_LIMIT / MAX_RETRIES | 5 / 6 / 12000 / 0 |
+| REAL_MODEL_ACCEPTANCE_HTTP_ATTEMPTS | 8 — completed controlled synthetic run |
+| GLOBAL_ACCEPTANCE_BUDGET_EFFECTIVE_USED | 46/100 |
+| GLOBAL_ACCEPTANCE_BUDGET_SAFE_REMAINING | 54 |
+| ACTUAL_HISTORICAL_USED_EXACT | UNVERIFIED |
+| MODEL_HTTP_REQUESTS_THIS_ROUND | 0 — final engineering/commit/push round |
+| REAL_BUSINESS_EGRESS_RELEASE | BLOCKED_PROVIDER_POLICY |
+| REAL_USER_CONTEXT_TO_EXTERNAL_MODEL | BLOCKED_PROVIDER_POLICY |
+| M4_REAL_SOLVER_VALIDATION | NOT_RUN / BLOCKED_MISSING_SOLVER_ARTIFACT |
+| M5_STATUS / M6_STATUS | NOT_STARTED / NOT_STARTED |
+| DEPLOY | NOT_PERFORMED |
+
+### Completed real synthetic evidence
+
+The authorized run used `protocol=chat_completions`, `model=zhipu/glm-5.3`, upstream identity `https://moma.cmecloud.cn/v1`, and explicit `explicit_chat_legacy`. It ran the full server-owned synthetic fixtures against the existing Loop/Registry/M2 through the controlled broker. The first full run passed and stopped after eight HTTP attempts: one basic, one JSON, one structured intent, two current rounds and three saved rounds. The longest HTTP attempt was approximately 10.96 seconds; the existing 15-second HTTP cap was sufficient. A valid structured response establishes client validation, not reliable server-side strict enforcement. The standard profile's optional reasoning-extension blocker remains separate from legacy PASS.
+
+Current executed `current_plan.get_room_detail` and `current_plan.get_summary`, both with valid arguments and Registry/M2 status `ok`. Two observations were refilled as Chat `role=tool` with matching `tool_call_id`. Active shift, trade_1, shift count 2, planned operator 贸易甲, unavailable observed snapshot, final answer facts and code-derived sources passed.
+
+Saved completed `saved_plan.list` → list result refill → `saved_plan.compare` → result refill → final. Compare used the actual authorized IDs returned by list, not guessed IDs. Both tools returned `ok`; the foreign-owner negative control stayed denied. Natural-24h LMD 100 / 150 and right-minus-left 50, both saved-plan sources and final answer checks passed.
+
+Accounting is **32 confirmed + 6 legacy unreconciled reserve + 8 newly controlled attempts = effective 46**. The reserve is not confirmed usage. Effective usage moved from 38 to 46, leaving 54 of the global 100 limit; no historical reconciliation or refund occurred. All sends used the controlled broker; the runner received a run token, never the upstream key. The completed run is closed and authorization disabled. Safe per-attempt evidence and source hashes are retained privately outside Git; raw provider responses, arbitrary text and reasoning are not retained.
+
+The real run was on HEAD `7366d281a9038ad9aa37ff49956dbd3bb0b969df` plus the then-current uncommitted diagnostic/controlled-acceptance candidates. This final engineering follow-up does not repeat real calls or claim a new real run on the resulting commit. It validates the final changes offline. The broker, operator authorization implementation and atomic ledger live outside the repository and are **not production components published by this Git commit**; only the supported CLI integration and its tests/docs are included.
+
+### Generic runtime adjustment and final review
+
+The three saved HTTP rounds took about 21.5 seconds in total. The normal Agent total budget is therefore now 60 seconds, matching the previously explicit synthetic total budget. The 15-second model HTTP cap, 5-second tool cap, 5 steps, 6 calls, 12000 reported tokens, zero retries and all schema/egress/ownership/no-write checks remain. Browser/API bodies cannot specify deadline or synthetic overrides. No vendor/model name selects budgets or compatibility mode.
+
+Final review found and fixed one MEDIUM issue: the SDK clears its timer after response headers, leaving response-body consumption without its own HTTP deadline. Both protocol transports now share a full-operation deadline guard with caller-cancellation precedence, cleanup and safe timeout provenance. The existing broker already buffered full upstream responses under its own deadline, so this issue does not invalidate the completed real acceptance. Offline slow-body tests reproduced the failure before the fix; fake-time tests reproduce the old 20-second cutoff and verify the new 60-second boundary, cancellation and rejection of late results.
+
+| Final offline gate | Result |
+| --- | --- |
+| FINAL_REVIEW | PASS — HIGH 0, MEDIUM 1 fixed / 0 open, LOW 0 |
+| TARGETED_TESTS | 80/80 — diagnostics, both protocols, 60s budget, API and broker entry |
+| OPERATOR_TESTS | 28/28 — rerun against final runtime; fake credentials/local endpoints only |
+| AGENT / GOLDEN / API_CONTRACT | 306/306 / 34/34 / 76/76 |
+| TSC / CHECK / DIFF_CHECK | PASS / PASS / PASS |
+| BUILD / STANDALONE | PASS — isolated cloud-enabled webpack; standalone preparation completed |
+| E2E | 6/6 — mock Agent browser cases, no skips |
+| MODEL_HTTP_REQUESTS_THIS_ROUND | 0 — global effective usage remains 46/100 |
+
+The new budget and slow-body tests first failed on the old behavior and then passed after the minimal fixes. Sandbox subprocess/socket restrictions were handled by rerunning the offline commands with the explicit isolated test environment; those failed sandbox invocations are not reported as passing tests. Build and E2E used a fresh copy containing all final runtime changes and existing candidates, with source hashes verified against the worktree. Only this gate-result documentation was filled in afterward. Operator state, private evidence and ignored local instructions remain outside the commit.
+
+Synthetic compatibility PASS does not approve provider processing or real user egress. Existing M0 tools and M4 preview remain within their approved read-only/compute-only scope; no solver artifact, production database operation, write/RAG/memory/product multi-agent, deployment or next stage is introduced.
+
 ## M4 final engineering checkpoint — 2026-09-09
 
 This section supersedes earlier current/next instructions. The latest task authorizes the M3.6 audit-only checkpoint followed by review, offline validation and publication of the existing M4 candidate. No M5/M6, deployment, production database or real model work is authorized or performed.

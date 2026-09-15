@@ -1,6 +1,6 @@
 import type { ChatCompletionCreateParamsNonStreaming, ChatCompletionAssistantMessageParam, ChatCompletionMessageFunctionToolCall } from "openai/resources/chat/completions/completions";
 import { assertModelConfig, type ModelConfig } from "./compatible-config.ts";
-import { createCompatibleClient, safeCompatibleError, type RequestBudget } from "./compatible-transport.ts";
+import { CompatibleProviderError, callerCancellationError, createCompatibleClient, safeCompatibleError, withCompatibleDeadline, type RequestBudget } from "./compatible-transport.ts";
 import { AgentRunError, record } from "./run-contract.ts";
 import type { AgentModelUsage } from "./model-provider.ts";
 
@@ -17,15 +17,23 @@ export function validateChatEnvelope(value: unknown, allowLegacy = false) {
   if (choice.index !== 0 || msg.role !== "assistant") throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
   if (choice.finish_reason === "length") throw new AgentRunError("AGENT_CHAT_INCOMPLETE");
   if (choice.finish_reason === "content_filter" || msg.refusal) throw new AgentRunError("AGENT_CHAT_REFUSAL");
-  const hasReasoningSignals = reasoningFields.some((key) => msg[key] !== undefined && msg[key] !== null);
+  const reasoningExtensionKeys = Object.freeze(reasoningFields.filter((key) => msg[key] !== undefined && msg[key] !== null));
+  const hasReasoningSignals = reasoningExtensionKeys.length > 0;
   const hasLegacyFunctionCall = msg.function_call !== undefined && msg.function_call !== null;
   // Vendor-specific reasoning may require continuation. Never silently drop it in strict mode.
-  if (!allowLegacy && (hasReasoningSignals || hasLegacyFunctionCall)) {
-    throw new AgentRunError("AGENT_CHAT_CONTINUATION_UNSUPPORTED");
-  }
   // Legacy mode discards only optional side-channel fields, without mutating input.
   // Old function_call has no trustworthy call ID and is not normalized.
-  if (hasLegacyFunctionCall) throw new AgentRunError("AGENT_CHAT_CONTINUATION_UNSUPPORTED");
+  if (hasLegacyFunctionCall || (!allowLegacy && hasReasoningSignals)) {
+    throw new CompatibleProviderError("AGENT_CHAT_CONTINUATION_UNSUPPORTED", {
+      category: "continuation", rootCause: "UNRESOLVED",
+      continuation: Object.freeze({
+        reason: hasReasoningSignals && hasLegacyFunctionCall ? "MULTIPLE_UNSUPPORTED_CONTINUATION_SIGNALS"
+          : hasLegacyFunctionCall ? "DEPRECATED_FUNCTION_CALL" : "OPTIONAL_REASONING_EXTENSION",
+        hasReasoningExtension: hasReasoningSignals, hasDeprecatedFunctionCall: hasLegacyFunctionCall,
+        reasoningExtensionKeys,
+      }),
+    });
+  }
   if (choice.finish_reason !== "stop" && choice.finish_reason !== "tool_calls") throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
   const content = msg.content === null || msg.content === undefined || msg.content === "" ? null : boundedString(msg.content, 12000);
   let calls: ChatCompletionMessageFunctionToolCall[] = [];
@@ -58,11 +66,13 @@ export function createChatCompletionsTransport(config: ChatCompletionsConfig, fe
   const client = createCompatibleClient(config, fetcher, budget);
   return { async create(request: ChatCompletionCreateParamsNonStreaming, options: { signal: AbortSignal; timeout: number; maxRetries: 0 }) {
     try {
-      const data = await client.chat.completions.create({ ...request, model: config.model, store: false, stream: false, n: 1,
-        max_completion_tokens: Math.min(request.max_completion_tokens ?? 1800, 1800) }, { ...options, timeout: Math.min(options.timeout, 15000), maxRetries: 0 });
-      return validateChatEnvelope(data, allowLegacy);
+      return await withCompatibleDeadline(options, async (bounded) => {
+        const data = await client.chat.completions.create({ ...request, model: config.model, store: false, stream: false, n: 1,
+          max_completion_tokens: Math.min(request.max_completion_tokens ?? 1800, 1800) }, bounded);
+        return validateChatEnvelope(data, allowLegacy);
+      });
     } catch (error) {
-      if (options.signal.aborted) throw new AgentRunError("AGENT_ABORTED");
+      if (options.signal.aborted) throw callerCancellationError();
       if (error instanceof AgentRunError && error.code === "AGENT_INVALID_INPUT") throw new AgentRunError("AGENT_CHAT_INVALID_RESPONSE");
       throw safeCompatibleError(error, "chat_completions");
     }

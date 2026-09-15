@@ -143,12 +143,17 @@ test("legacy is explicit per synthetic invocation, never inferred from model", a
   const strict = await runSyntheticCompatibleSmoke(readModelConfig(env), withReasoning, "basic");
   assert.equal(strict.requests, 1); assert.equal(strict.capabilities.basicCompletion.code, "AGENT_CHAT_CONTINUATION_UNSUPPORTED");
   assert.equal(strict.compatibilityMode, "default_strict");
+  assert.deepEqual(strict.capabilities.basicCompletion.diagnostic?.continuation, {
+    reason: "OPTIONAL_REASONING_EXTENSION", hasReasoningExtension: true,
+    hasDeprecatedFunctionCall: false, reasoningExtensionKeys: ["reasoning_content"],
+  });
+  assert.ok(!JSON.stringify(strict).includes("private-side-channel"));
   let requests = 0;
   await assert.rejects(runSyntheticCompatibleSmoke(readModelConfig({ ...env, AGENT_MODEL_PROTOCOL: "responses" }), async () => { requests++; throw new Error(); }, "basic", { chatLegacyCompat: true }));
   assert.equal(requests, 0);
   for (const model of ["zhipu/glm-5.3", "unrelated-model"]) {
     const result = await runSyntheticCompatibleSmoke(readModelConfig({ ...env, AGENT_MODEL_ID: model }), withReasoning, "basic");
-    assert.equal(result.compatibilityMode, "default_strict"); assert.equal(result.acceptanceDeadlines.totalMs, 20000); assert.equal(result.requests, 1);
+    assert.equal(result.compatibilityMode, "default_strict"); assert.equal(result.acceptanceDeadlines.totalMs, 60000); assert.equal(result.requests, 1);
   }
 });
 
@@ -202,7 +207,28 @@ test("old process opt-ins and acceptance settings cannot enable legacy or change
   assert.equal(requests, 2); assert.equal(strict.requests, 1); assert.equal(legacy.requests, 1);
   assert.equal(strict.capabilities.basicCompletion.code, "AGENT_CHAT_CONTINUATION_UNSUPPORTED");
   assert.equal(strict.compatibilityMode, "default_strict");
-  assert.deepEqual(strict.acceptanceDeadlines, { strictMs: 15000, totalMs: 20000, toolMs: 5000 });
+  assert.deepEqual(strict.acceptanceDeadlines, { strictMs: 15000, totalMs: 60000, toolMs: 5000 });
   assert.equal(legacy.status, "PASS"); assert.equal(legacy.compatibilityMode, "explicit_chat_legacy");
   assert.ok(!child.stdout.includes("private-synthetic-reasoning"));
+});
+
+test("direct synthetic probe uses transport deadlines without manufacturing caller cancellation", async (t) => {
+  const original = globalThis.setTimeout;
+  const delays: number[] = [];
+  t.mock.method(globalThis, "setTimeout", (callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+    delays.push(Number(delay)); return original(callback, delay === 15000 ? 10 : delay, ...args);
+  });
+  t.mock.method(AbortSignal, "timeout", () => { throw new Error("Direct probe must not manufacture a caller deadline"); });
+  for (const protocol of ["chat_completions", "responses"]) {
+    let attempts = 0;
+    const result = await runSyntheticCompatibleSmoke(readModelConfig({ ...env, AGENT_MODEL_PROTOCOL: protocol }), async (_url, init) => {
+      attempts++;
+      return new Promise((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("private-timeout-marker", "AbortError")), { once: true }));
+    }, "basic");
+    assert.equal(attempts, 1); assert.equal(result.requests, 1);
+    assert.equal(result.capabilities.basicCompletion.code, "AGENT_MODEL_TIMEOUT");
+    assert.equal(result.capabilities.basicCompletion.diagnostic?.interruptReason, "TRANSPORT_DEADLINE_EXCEEDED");
+    assert.ok(!JSON.stringify(result).includes("private-"));
+  }
+  assert.ok(delays.includes(15000)); assert.ok(!delays.some((n) => n > 15000));
 });

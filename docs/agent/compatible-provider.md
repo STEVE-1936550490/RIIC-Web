@@ -2,6 +2,32 @@
 
 The provider layer supports explicitly selected **Responses** and **Chat Completions** protocols. Protocol, endpoint, supplier, model ID and SDK are independent. The installed `openai` SDK is retained as the HTTP client; neither MoMA nor the official OpenAI service is a default supplier. Compatibility is limited to the documented request shapes below and requires acceptance of each endpoint + protocol + model + code version.
 
+## M4 compatibility follow-up — 2026-09-15
+
+M4 remains COMPLETE. The completed controlled GLM-5.3 full synthetic run passed basic completion, JSON, client structured validation and both actual Tool Loops under `explicit_chat_legacy`: current used two HTTP rounds; saved used three, including list-returned authorized IDs, compare, refill, final facts/sources and the foreign-owner negative control. Eight attempts were charged; effective budget is 32 confirmed + 6 unreconciled reserve + 8 controlled = 46/100, safe remaining 54. Exact historical usage remains UNVERIFIED. `STANDARD_PROFILE_ACCEPTANCE=BLOCKED_OPTIONAL_REASONING_EXTENSION` and `SERVER_STRICT_ENFORCEMENT=NOT_PROVEN` remain separate conclusions.
+
+The normal total run budget is now 60000 ms; single HTTP remains 15000 ms and tools remain 5000 ms. The final engineering/commit/push round makes zero new real-model calls. Real evidence identifies the pre-follow-up source snapshot; final code changes receive offline regression/build/mock E2E, not a new endpoint acceptance. The external operator/broker/ledger infrastructure is not shipped in this repository. `REAL_BUSINESS_EGRESS_RELEASE` and `REAL_USER_CONTEXT_TO_EXTERNAL_MODEL` remain `BLOCKED_PROVIDER_POLICY`. The [latest status section](implementation-status.md) supersedes historical current-state claims below.
+
+## Controlled synthetic execution — 2026-09-11
+
+Supported live smoke CLIs require an operator-issued single-run token and a
+loopback broker URL. Direct upstream URL + credential combinations fail before
+HTTP. The operator owns the upstream credential and binds authorization to the
+source, endpoint hash, protocol, model, mode, compatibility profile, attempt cap
+and expiry. `/v1/chat/completions` and `/v1/responses` are proxied without changing
+protocol bodies or moving Agent/parser logic into the broker.
+
+The server operator ledger starts at confirmedUsed=32 + legacyReserve=6 =
+effectiveUsed=38 of 100. This reserve is not proof of historical consumption;
+actualHistoricalUsedExact remains UNVERIFIED. Each upstream attempt is durably
+charged before transport and never refunded after a possible send. Local 1/12
+per-run limits remain an additional layer. No real call is authorized by these
+engineering changes. See the server's private `operator/README.md` for the sole
+supported invocation and ledger maintenance workflow.
+
+The environment configuration below still describes product provider factories;
+for live CLI acceptance, BASE_URL/API_KEY are broker URL/run token only.
+
 ## Configuration and entry points
 
 `readModelConfig` in `src/server/agent/compatible-config.ts` validates server configuration. `createCompatibleLoopProvider` and `createCompatibleModelProvider` in `compatible-provider.ts` select the appropriate adapter; their `FromEnv` variants use the same validation. Historical Responses factories remain Responses-only and reject a Chat configuration.
@@ -17,7 +43,7 @@ The provider layer supports explicitly selected **Responses** and **Chat Complet
 
 For `https://gateway.example.invalid/custom/v1`, Responses sends only `POST /custom/v1/responses`; Chat sends only `POST /custom/v1/chat/completions`. `/v1` is never guessed or inserted. Complete `/responses` and `/chat/completions` URLs are rejected for both protocols, including trailing slashes and case variants. URL userinfo, query, fragment, encoded/ambiguous paths and non-loopback HTTP are rejected. The existing official model host rejection is retained; this task does not relax endpoint policy.
 
-There are no legacy `OPENAI_*` credential/address defaults, `.env` loaders, protocol fallback, endpoint probing, parameter-removal retries or model-name heuristics. The shared SDK factory replaces inherited headers, disables logging, sets retries to zero, rejects redirects and retains normal TLS verification. Each request is capped at 15 seconds. Existing 5-step / 6-tool / 20-second / 12,000-reported-token run budgets and result limits remain in the shared orchestrator.
+There are no legacy `OPENAI_*` credential/address defaults, `.env` loaders, protocol fallback, endpoint probing, parameter-removal retries or model-name heuristics. The shared SDK factory replaces inherited headers, disables logging, sets retries to zero, rejects redirects and retains normal TLS verification. Each request is capped at 15 seconds through response-body consumption and parsing; both adapters share a deadline guard because the SDK timer ends at response headers. Caller cancellation takes precedence and never retains an arbitrary abort reason. Existing 5-step / 6-tool / 60-second / 12,000-reported-token run budgets and result limits remain in the shared orchestrator.
 
 ## Protocol contracts
 
@@ -83,7 +109,7 @@ Summaries contain endpoint hash, protocol, requested/reported model, request-sha
 
 ## Explicit synthetic compatibility options — 2026-09-08
 
-The existing synthetic CLI accepts `--chat-legacy-compat`, `--agent-strict-ms`, `--agent-total-ms`, and `--agent-tool-ms` alongside `--mode basic|full`. All options are parsed once and passed into the existing runner; no broker or second Agent Loop is required. Old `ACCEPTANCE_*` environment variables are ignored. The command still requires its own opt-in and explicit validated model configuration. Invalid, duplicate, unknown or out-of-range arguments fail before HTTP.
+The existing synthetic CLI accepts `--chat-legacy-compat`, `--agent-strict-ms`, `--agent-total-ms`, and `--agent-tool-ms` alongside `--mode basic|full`. All options are parsed once and passed into the existing runner; the operator broker controls real HTTP while the same Agent Loop is retained. Old `ACCEPTANCE_*` environment variables are ignored. The command still requires its own opt-in and explicit validated model configuration. Invalid, duplicate, unknown or out-of-range arguments fail before HTTP.
 
 | Behavior | Default strict request mode | Explicit Chat legacy mode |
 | --- | --- | --- |
@@ -102,10 +128,10 @@ Neither supplier, domain nor model name enables legacy mode. It does not select 
 | Option | Default / finite maximum (ms) | Actual scope |
 | --- | --- | --- |
 | `--agent-strict-ms` | 15000 / 30000 | Outer `callStructuredAgentIntent` cancellation budget for the structured probe; independent of totalMs |
-| `--agent-total-ms` | 20000 / 60000 | Shared Loop total elapsed budget for each current/saved scenario separately; not all of full mode |
+| `--agent-total-ms` | 60000 / 60000 | Shared Loop total elapsed budget for each current/saved scenario separately; not all of full mode |
 | `--agent-tool-ms` | 5000 / 12000 | Per-tool waiting deadline, bounded by scenario remaining time; not HTTP timeout |
 
-All values must be whole positive decimal integers. Chat HTTP remains capped at 15000 ms even with strictMs=30000. Loop cancellation and total-time checks remain active; tool waiting is bounded but underlying non-cooperative domain work is not claimed to be forcibly terminated. Extended Loop deadlines require an explicit server-owned synthetic invocation; normal `/api/agent` retains 20000/5000 ms and cannot accept these options. Limits are per invocation and do not mutate globals. The historical broker's 180-second child timeout and control client's 240-second socket wait are outside these three budgets and are not product settings.
+All values must be whole positive decimal integers. Chat HTTP remains capped at 15000 ms even with strictMs=30000. Loop cancellation and total-time checks remain active; tool waiting is bounded but underlying non-cooperative domain work is not claimed to be forcibly terminated. The normal total budget is 60000 ms and the tool budget remains 5000 ms. Only explicit server-owned synthetic acceptance can raise the tool budget to 12000 ms; normal `/api/agent` cannot accept deadline options. Limits are per invocation and do not mutate globals. The historical broker's 180-second child timeout and control client's 240-second socket wait are outside these three budgets and are not product settings.
 
 The archived implementation had wider behavior: global environment switches, fenced/embedded JSON extraction, generated legacy function-call IDs and uncapped shared deadline overrides. These are not the final delivery behavior. No automatic json_schema → json_object fallback exists in the baseline, archived patch or final code. The independent jsonOutput probe remains explicit.
 

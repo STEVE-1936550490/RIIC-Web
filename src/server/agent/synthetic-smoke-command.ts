@@ -1,3 +1,4 @@
+import { brokerAcceptance } from "./broker-acceptance.ts";
 import { parseSyntheticAcceptanceArgs } from "./synthetic-acceptance-options.ts";
 import { missingModelConfig, readModelConfig, type ModelConfig, type ModelEnvironment } from "./compatible-config.ts";
 import { AgentRunError } from "./run-contract.ts";
@@ -13,9 +14,10 @@ export async function syntheticSmokeCommand(env: ModelEnvironment, optIn: string
     const { mode, options } = parseSyntheticAcceptanceArgs(args);
     const config = readModelConfig(env);
     if (protocol && config.protocol !== protocol) throw new AgentRunError("AGENT_MODEL_PROTOCOL_UNSUPPORTED");
+    const broker = await brokerAcceptance(config, mode, options);
     stage = "runner";
     const { runSyntheticCompatibleSmoke } = await import("./compatible-smoke.ts");
-    return await runSyntheticCompatibleSmoke(config, fetch, mode, options);
+    return { ...await runSyntheticCompatibleSmoke(config, broker.fetcher, mode, options), broker: broker.evidence };
   } catch (error) {
     const safe = error instanceof AgentRunError ? error : new AgentRunError("AGENT_MODEL_SMOKE_FAILED");
     return { status: "FAIL", stage, requests: stage === "configuration" ? 0 : "unavailable", code: safe.code, diagnostic: diagnosticForError(safe) };

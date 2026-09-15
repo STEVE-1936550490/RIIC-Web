@@ -9,6 +9,13 @@ export type SafeProviderDiagnostic = Readonly<{
   upstreamCode?: string;
   upstreamType?: string;
   rootCause: "UNRESOLVED";
+  interruptReason?: "TRANSPORT_DEADLINE_EXCEEDED" | "CALLER_CANCELLED" | "UNKNOWN_INTERRUPT";
+  continuation?: Readonly<{
+    reason: "OPTIONAL_REASONING_EXTENSION" | "DEPRECATED_FUNCTION_CALL" | "MULTIPLE_UNSUPPORTED_CONTINUATION_SIGNALS";
+    hasReasoningExtension: boolean;
+    hasDeprecatedFunctionCall: boolean;
+    reasoningExtensionKeys: readonly ("reasoning" | "reasoning_content" | "reasoning_details" | "audio")[];
+  }>;
 }>;
 export class CompatibleProviderError extends AgentRunError {
   readonly diagnostic: SafeProviderDiagnostic;
@@ -23,8 +30,8 @@ export function safeCompatibleError(error: unknown, protocol: ModelConfig["proto
   const prefix = protocol === "responses" ? "AGENT_RESPONSES_" : "AGENT_CHAT_";
   if (error instanceof AgentRunError) return error;
   if (error instanceof OpenAI.APIConnectionError && error.cause instanceof AgentRunError) return error.cause;
-  if (error instanceof OpenAI.APIUserAbortError) return new AgentRunError("AGENT_ABORTED");
-  if (error instanceof OpenAI.APIConnectionTimeoutError) return new AgentRunError("AGENT_MODEL_TIMEOUT");
+  if (error instanceof OpenAI.APIUserAbortError) return new CompatibleProviderError("AGENT_ABORTED", { category: "cancelled", rootCause: "UNRESOLVED", interruptReason: "UNKNOWN_INTERRUPT" });
+  if (error instanceof OpenAI.APIConnectionTimeoutError) return new CompatibleProviderError("AGENT_MODEL_TIMEOUT", { category: "timeout", rootCause: "UNRESOLVED", interruptReason: "TRANSPORT_DEADLINE_EXCEEDED" });
   if (error instanceof SyntaxError || error instanceof TypeError) return new AgentRunError(`${prefix}INVALID_RESPONSE`);
   if (error instanceof OpenAI.APIError) {
     const status = error.status;
@@ -74,4 +81,41 @@ export function diagnosticForError(error: AgentRunError): SafeProviderDiagnostic
     : /BUDGET|LIMIT/.test(code) ? "budget" : /INVALID_RESPONSE|INCOMPLETE|REFUSAL|INVALID_OUTPUT|INVALID_INPUT/.test(code) ? "response_format"
     : /TOOL|HISTORY|ALIAS|FACT_MISMATCH/.test(code) ? "tool_behavior" : "provider_error";
   return { category, upstreamCode: "UNKNOWN", upstreamType: "UNKNOWN", rootCause: "UNRESOLVED" };
+}
+
+/** A supplied signal is owned by the caller; never inspect or retain its arbitrary reason. */
+export function callerCancellationError(): CompatibleProviderError {
+  return new CompatibleProviderError("AGENT_ABORTED", {
+    category: "cancelled", rootCause: "UNRESOLVED", interruptReason: "CALLER_CANCELLED",
+  });
+}
+
+/** Covers SDK response-body consumption too; the SDK's own timer ends at headers. */
+export async function withCompatibleDeadline<T>(
+  options: { signal: AbortSignal; timeout: number; maxRetries: 0 },
+  work: (options: { signal: AbortSignal; timeout: number; maxRetries: 0 }) => Promise<T>,
+): Promise<T> {
+  if (options.signal.aborted) throw callerCancellationError();
+  if (!Number.isFinite(options.timeout) || options.timeout <= 0) throw new AgentRunError("AGENT_MODEL_CONFIG_INVALID");
+  const timeout = Math.min(options.timeout, 15000);
+  const controller = new AbortController();
+  const deadlineError = () => new CompatibleProviderError("AGENT_MODEL_TIMEOUT", {
+    category: "timeout", rootCause: "UNRESOLVED", interruptReason: "TRANSPORT_DEADLINE_EXCEEDED",
+  });
+  let expired = false;
+  let rejectInterrupt!: (error: AgentRunError) => void;
+  const interrupted = new Promise<never>((_, reject) => { rejectInterrupt = reject; });
+  const cancel = () => { rejectInterrupt(callerCancellationError()); controller.abort(); };
+  options.signal.addEventListener("abort", cancel, { once: true });
+  const timer = setTimeout(() => { expired = true; rejectInterrupt(deadlineError()); controller.abort(); }, timeout);
+  try {
+    return await Promise.race([Promise.resolve().then(() => {
+      if (controller.signal.aborted) throw options.signal.aborted ? callerCancellationError() : deadlineError();
+      return work({ signal: controller.signal, timeout, maxRetries: 0 });
+    }), interrupted]);
+  } catch (error) {
+    if (options.signal.aborted) throw callerCancellationError();
+    if (expired) throw deadlineError();
+    throw error;
+  } finally { clearTimeout(timer); options.signal.removeEventListener("abort", cancel); }
 }

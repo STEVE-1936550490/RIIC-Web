@@ -9,7 +9,7 @@ import { createResponsesModelProvider } from "./openai-model-provider.ts";
 import { createResponsesLoopProvider } from "./openai-loop-provider.ts";
 import { AgentModelError, callStructuredAgentIntent } from "./model-client.ts";
 import { createAgentIntentMessages } from "./intent-prompt.ts";
-import { AgentRunError, record } from "./run-contract.ts";
+import { AGENT_RUN_LIMITS, AgentRunError, record } from "./run-contract.ts";
 import type { ResponsesConfig } from "./responses-config.ts";
 import type { ModelConfig } from "./compatible-config.ts";
 import { createChatCompletionsTransport, type ChatCompletionsConfig } from "./chat-completions-transport.ts";
@@ -47,7 +47,8 @@ export async function runSyntheticCompatibleSmoke(config: ModelConfig, fetcher: 
   if (acceptanceDeadlines.chatLegacyCompat && config.protocol !== "chat_completions") throw new AgentRunError("AGENT_MODEL_CONFIG_INVALID");
   const budget = { requests: 0, maximum: mode === "basic" ? 1 : 12 }; const reportedModels = new Set<string>(); const usage: Array<AgentModelUsage | null> = [];
   const track = (result: { model?: string; usage?: AgentModelUsage }) => { if (result.model) reportedModels.add(result.model); usage.push(result.usage ?? null); };
-  const options = () => ({ signal: AbortSignal.timeout(15000), timeout: 15000, maxRetries: 0 as const });
+  // The transport owns the full HTTP deadline; the probe does not masquerade as caller cancellation.
+  const options = () => ({ signal: new AbortController().signal, timeout: 15000, maxRetries: 0 as const });
   const setup = () => {
     if (config.protocol === "responses") {
       const cfg = config as ResponsesConfig;
@@ -177,7 +178,7 @@ export async function runSyntheticCompatibleSmoke(config: ModelConfig, fetcher: 
   }
   const all = mode === "basic" ? capabilities.basicCompletion.status === "PASS" : Object.values(capabilities).every((c) => c.status === "PASS");
   return { status: all ? "PASS" : Object.values(capabilities).some((c) => c.code?.includes("INCOMPATIBLE") || c.code?.includes("CONTINUATION_UNSUPPORTED")) ? "CAPABILITY_INCOMPATIBLE" : "FAIL",
-    compatibilityMode: acceptanceDeadlines.chatLegacyCompat ? "explicit_chat_legacy" : "default_strict", acceptanceDeadlines: { strictMs: acceptanceDeadlines.strictMs ?? 15000, totalMs: acceptanceDeadlines.totalMs ?? 20000, toolMs: acceptanceDeadlines.toolMs ?? 5000 },
+    compatibilityMode: acceptanceDeadlines.chatLegacyCompat ? "explicit_chat_legacy" : "default_strict", acceptanceDeadlines: { strictMs: acceptanceDeadlines.strictMs ?? 15000, totalMs: acceptanceDeadlines.totalMs ?? AGENT_RUN_LIMITS.totalMs, toolMs: acceptanceDeadlines.toolMs ?? AGENT_RUN_LIMITS.toolMs },
     mode, requestLimit: budget.maximum, requestShape: "m3.5b-strict-tools-v1", endpointId: createHash("sha256").update(config.baseURL).digest("hex").slice(0, 12), protocol: config.protocol, requestedModel: config.model,
     reportedModels: [...reportedModels].sort(), requests: budget.requests, capabilities,
     functionToolLoop: capabilities.current.status === "PASS" && capabilities.saved.status === "PASS" ? "PASS" : capabilities.current.status === "BLOCKED" || capabilities.saved.status === "BLOCKED" ? "BLOCKED" : "FAIL",

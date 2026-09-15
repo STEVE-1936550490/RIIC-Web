@@ -229,3 +229,107 @@ test("client rejects invalid schema and wrapped JSON with one HTTP attempt and n
     assert.ok(String(record((requests[0].messages as unknown[])[0]).content).includes(JSON.stringify(AGENT_INTENT_DECISION_OUTPUT_CONTRACT.schema)));
   }
 });
+
+for (const legacy of [false, true]) for (const key of ["reasoning", "reasoning_content", "reasoning_details", "audio", null] as const) for (const deprecated of [false, true]) {
+  if (!key && !deprecated) continue;
+  test(`safe continuation signals: legacy=${legacy}, key=${key}, deprecated=${deprecated}`, async () => {
+    const { validateChatEnvelope } = await import("./chat-completions-transport.ts");
+    const extensions = { ...(key ? { [key]: "private-extension-marker" } : {}), ...(deprecated ? { function_call: { name: "private-function-marker", arguments: "private-arguments-marker" } } : {}) };
+    for (const tool of [false, true]) {
+      const value = envelope({ role: "assistant", content: tool ? "" : "synthetic answer", ...(tool ? { tool_calls: [call()] } : {}), ...extensions }, tool ? "tool_calls" : "stop");
+      if (legacy && !deprecated) {
+        const result = validateChatEnvelope(value, legacy);
+        assert.equal(result.calls.length, tool ? 1 : 0);
+        assert.ok(!JSON.stringify(result).includes("private-"));
+      } else {
+        assert.throws(() => validateChatEnvelope(value, legacy), (error: unknown) => {
+          assert.ok(error instanceof CompatibleProviderError);
+          assert.equal(error.code, "AGENT_CHAT_CONTINUATION_UNSUPPORTED");
+          assert.deepEqual(error.diagnostic.continuation, {
+            reason: key && deprecated ? "MULTIPLE_UNSUPPORTED_CONTINUATION_SIGNALS" : deprecated ? "DEPRECATED_FUNCTION_CALL" : "OPTIONAL_REASONING_EXTENSION",
+            hasReasoningExtension: !!key, hasDeprecatedFunctionCall: deprecated, reasoningExtensionKeys: key ? [key] : [],
+          });
+          assert.ok(!JSON.stringify(error).includes("private-"));
+          assert.ok(Object.isFrozen(error.diagnostic.continuation));
+          assert.ok(Object.isFrozen(error.diagnostic.continuation?.reasoningExtensionKeys));
+          return true;
+        });
+      }
+    }
+  });
+}
+
+test("both protocols distinguish SDK deadline, caller cancellation and network failure without retaining reasons", async () => {
+  const { createResponsesTransport } = await import("./responses-transport.ts");
+  const { safeCompatibleError } = await import("./compatible-transport.ts");
+  const { default: OpenAI } = await import("openai");
+  for (const protocol of ["chat_completions", "responses"] as const) {
+    const cfg = readModelConfig({ ...env, AGENT_MODEL_PROTOCOL: protocol });
+    let attempts = 0;
+    const fetcher: typeof fetch = async (_url, init) => {
+      attempts++;
+      return new Promise((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("private-abort-marker", "AbortError")), { once: true }));
+    };
+    const transport = protocol === "chat_completions" ? createChatCompletionsTransport(cfg as ChatCompletionsConfig, fetcher) : createResponsesTransport(cfg as import("./responses-config.ts").ResponsesConfig, fetcher);
+    const request = { model: cfg.model, messages: [], input: "synthetic" };
+    const check = (code: string, reason: string) => (error: unknown) => {
+      assert.ok(error instanceof CompatibleProviderError);
+      assert.equal(error.code, code); assert.equal(error.diagnostic.interruptReason, reason);
+      assert.ok(!JSON.stringify(error).includes("private-")); return true;
+    };
+    await assert.rejects(transport.create(request, { ...options(), timeout: 10 }), check("AGENT_MODEL_TIMEOUT", "TRANSPORT_DEADLINE_EXCEEDED"));
+    assert.equal(attempts, 1);
+    const caller = new AbortController();
+    const pending = transport.create(request, { ...options(), signal: caller.signal });
+    setTimeout(() => caller.abort("private-caller-reason"), 10);
+    await assert.rejects(pending, check("AGENT_ABORTED", "CALLER_CANCELLED"));
+    assert.equal(attempts, 2);
+    const unknown = safeCompatibleError(new OpenAI.APIUserAbortError(), protocol);
+    assert.ok(unknown instanceof CompatibleProviderError); assert.equal(unknown.diagnostic.interruptReason, "UNKNOWN_INTERRUPT");
+    const network = safeCompatibleError(new OpenAI.APIConnectionError({ message: "private-network-marker" }), protocol);
+    assert.equal(network.code, protocol === "responses" ? "AGENT_RESPONSES_NETWORK_ERROR" : "AGENT_CHAT_NETWORK_ERROR");
+    assert.ok(!JSON.stringify(network).includes("private-"));
+  }
+});
+
+test("both protocols enforce the 15s cap through response body consumption without retry", async (t) => {
+  const { createResponsesTransport } = await import("./responses-transport.ts");
+  const original = globalThis.setTimeout;
+  const scheduled: number[] = [];
+  t.mock.method(globalThis, "setTimeout", (...args: Parameters<typeof setTimeout>) => {
+    scheduled.push(Number(args[1]));
+    return original(args[0], Number(args[1]) === 15000 ? 10 : args[1], ...args.slice(2));
+  });
+  for (const protocol of ["chat_completions", "responses"] as const) {
+    for (const cancel of [false, true]) {
+      const cfg = readModelConfig({ ...env, AGENT_MODEL_PROTOCOL: protocol });
+      let sends = 0; let aborted = false;
+      const caller = new AbortController();
+      const fetcher: typeof fetch = async (_url, init) => {
+        sends++;
+        const body = new ReadableStream<Uint8Array>({ start(controller) {
+          init?.signal?.addEventListener("abort", () => {
+            aborted = true; controller.error(new Error("private-body-abort"));
+          }, { once: true });
+        } });
+        if (cancel) original(() => caller.abort("private-caller-reason"), 1);
+        return new Response(body, { headers: { "content-type": "application/json" } });
+      };
+      const transport = protocol === "chat_completions" ? createChatCompletionsTransport(cfg as ChatCompletionsConfig, fetcher) : createResponsesTransport(cfg as import("./responses-config.ts").ResponsesConfig, fetcher);
+      let settled = false;
+      const pending = transport.create({ model: cfg.model, messages: [], input: "synthetic" }, { signal: caller.signal, timeout: 60000, maxRetries: 0 });
+      const checked = pending.then(() => { settled = true; return null; }, (error: unknown) => { settled = true; return error; });
+      await new Promise<void>((resolve) => original(resolve, 80));
+      const metDeadline = settled;
+      if (!settled) caller.abort(); // Keep the regression's failing path bounded too.
+      const error = await checked;
+      assert.equal(metDeadline, true, "headers must not end the HTTP deadline");
+      assert.ok(error instanceof CompatibleProviderError);
+      assert.equal(error.code, cancel ? "AGENT_ABORTED" : "AGENT_MODEL_TIMEOUT");
+      assert.equal(error.diagnostic.interruptReason, cancel ? "CALLER_CANCELLED" : "TRANSPORT_DEADLINE_EXCEEDED");
+      assert.equal(sends, 1); assert.equal(aborted, true);
+      assert.ok(!JSON.stringify(error).includes("private-"));
+    }
+  }
+  assert.ok(scheduled.includes(15000)); assert.ok(!scheduled.includes(60000));
+});

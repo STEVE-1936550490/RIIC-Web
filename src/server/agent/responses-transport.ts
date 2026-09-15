@@ -1,4 +1,4 @@
-import { createCompatibleClient, safeCompatibleError, type RequestBudget } from "./compatible-transport.ts";
+import { callerCancellationError, createCompatibleClient, safeCompatibleError, withCompatibleDeadline, type RequestBudget } from "./compatible-transport.ts";
 import type { ResponseCreateParamsNonStreaming, ResponseOutputItem } from "openai/resources/responses/responses";
 import { assertResponsesConfig, type ResponsesConfig } from "./responses-config.ts";
 import { AgentRunError, record } from "./run-contract.ts";
@@ -11,11 +11,12 @@ export function createResponsesTransport(config: ResponsesConfig, fetcher: typeo
   const client = createCompatibleClient(config, fetcher, budget);
   return { async create(request: ResponseCreateParamsNonStreaming, options: { signal: AbortSignal; timeout: number; maxRetries: 0 }) {
     try {
-      const data = await client.responses.create({ ...request, model: config.model, store: false,
-        ...(config.reasoning === "encrypted" ? { include: ["reasoning.encrypted_content"] } : {}) }, { ...options, timeout: Math.min(options.timeout, 15000), maxRetries: 0 });
-      const parsed = validateResponsesEnvelope(data, config.reasoning);
-      return parsed;
-    } catch (error) { if (options.signal.aborted) throw new AgentRunError("AGENT_ABORTED");
+      return await withCompatibleDeadline(options, async (bounded) => {
+        const data = await client.responses.create({ ...request, model: config.model, store: false,
+          ...(config.reasoning === "encrypted" ? { include: ["reasoning.encrypted_content"] } : {}) }, bounded);
+        return validateResponsesEnvelope(data, config.reasoning);
+      });
+    } catch (error) { if (options.signal.aborted) throw callerCancellationError();
       if (error instanceof AgentRunError && error.code === "AGENT_INVALID_INPUT") throw new AgentRunError("AGENT_RESPONSES_INVALID_RESPONSE");
       throw safeResponsesError(error); }
   } };

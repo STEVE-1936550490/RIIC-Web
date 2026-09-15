@@ -73,14 +73,14 @@ test("API deterministic demo executes summary, room and list→actual candidate 
 });
 
 
-test("ordinary API schedules original budgets and rejects synthetic compatibility overrides before provider construction", async (t) => {
+test("ordinary API schedules 60s total and 5s tool budgets and rejects synthetic compatibility overrides before provider construction", async (t) => {
   const timers: number[] = []; const original = globalThis.setTimeout;
   t.mock.method(globalThis, "setTimeout", (...args: Parameters<typeof setTimeout>) => { timers.push(Number(args[1])); return original(...args); });
   const response = await handleAgentRequest(request(), deps());
   assert.equal((await response.json()).data.status, "ok");
-  assert.ok(timers.some((ms) => ms > 19000 && ms <= 20000), "API must schedule the original run budget");
+  assert.ok(timers.some((ms) => ms > 59000 && ms <= 60000), "API must schedule the 60s run budget");
   assert.ok(timers.includes(5000), "API must schedule the original per-tool budget");
-  assert.ok(!timers.some((ms) => ms > 20000));
+  assert.ok(!timers.some((ms) => ms > 60000));
   let constructed = 0;
   for (const overrides of [{ syntheticAcceptance: true }, { deadlines: { totalMs: 60000, toolMs: 12000 } }, { chatLegacyCompat: true }, { strictMs: 30000 }]) {
     const rejected = await handleAgentRequest(request({ message: "summary", context: syntheticExecution().snapshot, ...overrides }), {
@@ -90,4 +90,26 @@ test("ordinary API schedules original budgets and rejects synthetic compatibilit
     assert.ok(!JSON.stringify(await rejected.json()).includes("syntheticAcceptance"));
   }
   assert.equal(constructed, 0);
+});
+
+test("public API keeps continuation diagnostics internal", async () => {
+  const { validateChatEnvelope } = await import("./chat-completions-transport.ts");
+  const response = await handleAgentRequest(request(), { ...deps(), provider: () => new ScriptedLoopProvider([async () => {
+    validateChatEnvelope({ object: "chat.completion", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: "synthetic", reasoning_content: "private-marker" } }] });
+    return final;
+  }]) });
+  const body = await response.json();
+  assert.equal(body.data.error, "AGENT_CHAT_CONTINUATION_UNSUPPORTED");
+  for (const forbidden of ["diagnostic", "continuation", "OPTIONAL_REASONING_EXTENSION", "reasoning_content", "private-marker", "hasReasoningExtension"]) assert.ok(!JSON.stringify(body).includes(forbidden));
+});
+
+test("public API exposes existing timeout/cancel codes without internal interrupt provenance", async () => {
+  const { callerCancellationError, safeCompatibleError } = await import("./compatible-transport.ts");
+  const { default: OpenAI } = await import("openai");
+  for (const error of [callerCancellationError(), safeCompatibleError(new OpenAI.APIConnectionTimeoutError(), "chat_completions")]) {
+    const response = await handleAgentRequest(request(), { ...deps(), provider: () => new ScriptedLoopProvider([async () => { throw error; }]) });
+    const body = await response.json();
+    assert.equal(body.data.error, error.code);
+    for (const forbidden of ["diagnostic", "interruptReason", "TRANSPORT_DEADLINE_EXCEEDED", "CALLER_CANCELLED", "UNKNOWN_INTERRUPT"]) assert.ok(!JSON.stringify(body).includes(forbidden));
+  }
 });
