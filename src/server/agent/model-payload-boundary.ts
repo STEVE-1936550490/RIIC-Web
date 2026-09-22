@@ -87,6 +87,7 @@ export function createModelPayloadBoundary() {
       return project(result, schema);
     },
     resolveCall(call: LoopCall): LoopCall {
+      if (!Object.hasOwn(MODEL_OBSERVATION_PROJECTIONS, call.name)) throw new PayloadBoundaryError("PAYLOAD_CLASSIFICATION_FAILED");
       const args = toolDescriptor(call.name).parse(call.arguments);
       if (call.name !== "saved_plan.compare") return { id: call.id, name: call.name, arguments: args };
       const raw = record(args); const left = fromAlias.get(String(raw.leftPlanId)); const right = fromAlias.get(String(raw.rightPlanId));
@@ -97,10 +98,15 @@ export function createModelPayloadBoundary() {
       assertBusinessText(request.message);
       const payload: LoopRequest = { runId: request.runId, message: text(request.message, 2000), signal: request.signal, egress: request.egress,
         tools: request.tools.map((tool) => {
+          if (!Object.hasOwn(MODEL_OBSERVATION_PROJECTIONS, tool.name)) throw new PayloadBoundaryError("PAYLOAD_CLASSIFICATION_FAILED");
           const descriptor = toolDescriptor(tool.name);
           return { name: descriptor.name, description: descriptor.description, effect: descriptor.effect, inputSchema: structuredClone(descriptor.inputSchema) };
         }),
-        observations: request.observations.map((item) => ({ call: { id: item.call.id, name: item.call.name, arguments: toolDescriptor(item.call.name).parse(item.call.arguments) }, result: project(item.result, MODEL_OBSERVATION_PROJECTIONS[item.call.name]) })),
+        observations: request.observations.map((item) => {
+          // Check classification before project(): null is a valid value, not approval for a new tool.
+          if (!Object.hasOwn(MODEL_OBSERVATION_PROJECTIONS, item.call.name)) throw new PayloadBoundaryError("PAYLOAD_CLASSIFICATION_FAILED");
+          return { call: { id: item.call.id, name: item.call.name, arguments: toolDescriptor(item.call.name).parse(item.call.arguments) }, result: project(item.result, MODEL_OBSERVATION_PROJECTIONS[item.call.name]) };
+        }),
       };
       // Rebuild each round from original tool DTOs. The per-run ID map keeps prior aliases stable.
       markModelPayload(payload); return payload;

@@ -1,3 +1,4 @@
+import { requestedSkillContext, skillContextAnswer } from "./knowledge-contract.ts";
 import { requestedPreview, parsePreviewResult } from "./preview-contract.ts";
 import { assertModelEgress } from "./egress-policy.ts";
 import { record, type AgentFinalResult } from "./run-contract.ts";
@@ -23,6 +24,7 @@ export class LocalDemoProvider implements LoopProvider {
     if (request.observations.length) {
       const last = request.observations.at(-1)!;
       const result = record(last.result);
+      if (last.call.name === "knowledge.get_skill_context") return { decision: { type: "final", answer: skillContextAnswer(result) } };
       if (last.call.name === "plan.preview") {
         const preview = parsePreviewResult(result);
         return { decision: { type: "final", answer: preview.status === "ok" ? `FAKE / TEST — 试算完成；未保存、未应用。 PREVIEW_ONLY / NOT_SAVED / NOT_APPLIED. differences: ${JSON.stringify(preview.differences)}` : "FAKE / TEST — 试算失败，未生成候选方案；未保存、未应用。" } };
@@ -41,6 +43,8 @@ export class LocalDemoProvider implements LoopProvider {
       return { decision: { type: "final", answer: `FAKE / TEST — ${facts}` } };
     }
     const message = request.message.trim();
+    const knowledge = requestedSkillContext(message);
+    if (knowledge && request.tools.some(t => t.name === "knowledge.get_skill_context")) return { decision: { type: "calls", calls: [{ id: "local-skill-1", name: "knowledge.get_skill_context", arguments: knowledge }] } };
     const rotationProfile = requestedPreview(message);
     const previewTool = request.tools.find((tool) => tool.name === "plan.preview");
     if (rotationProfile && previewTool) {

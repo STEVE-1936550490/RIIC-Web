@@ -41,5 +41,7 @@
   "previewAssumptions": "用户假设",
   "previewMetric": "指标",
   "previewCurrent": "当前示例",
-  "previewLimitation": "使用固定的合成 solver 输出，仅验证工程链路，不代表实际产量、可行性或最优性。真实业务上下文仍禁止外发。"
+  "previewLimitation": "使用固定的合成 solver 输出，仅验证工程链路，不代表实际产量、可行性或最优性。真实业务上下文仍禁止外发。",
+  "structuredSkillSource": "系统技能数据",
+  "manualSkillSource": "站点人工补充说明"
 }

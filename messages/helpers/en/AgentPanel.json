@@ -41,5 +41,7 @@
   "previewAssumptions": "Requested assumptions",
   "previewMetric": "Metric",
   "previewCurrent": "Current example",
-  "previewLimitation": "Uses fixed synthetic solver outputs to validate the engineering flow; not evidence of real production, feasibility or optimality. Real business egress remains blocked."
+  "previewLimitation": "Uses fixed synthetic solver outputs to validate the engineering flow; not evidence of real production, feasibility or optimality. Real business egress remains blocked.",
+  "structuredSkillSource": "Structured skill data",
+  "manualSkillSource": "Site manual annotation"
 }

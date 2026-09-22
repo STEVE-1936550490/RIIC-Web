@@ -1,3 +1,4 @@
+import { createPublicSkillKnowledgeService } from "../skill-knowledge-read-server.ts";
 import { syntheticPreviewAccess } from "./synthetic-planning-preview.ts";
 import { processingAccess } from "./processing-access.ts";
 import { createCompatibleLoopProviderFromEnv } from "./compatible-provider.ts";
@@ -18,9 +19,10 @@ export const agentApiDependencies = {
   access: processingAccess, externalProvider: createCompatibleLoopProviderFromEnv,
   session: requireWebsiteSession, config: agentFeatureConfig,
   services: () => ({ savedPlans: createAccountSavedPlanReadService(), comparison: createAccountSavedPlanComparisonReadService() }),
+  knowledge: createPublicSkillKnowledgeService,
   provider: (): LoopProvider => new LocalDemoProvider(),
 };
-export async function handleAgentRequest(request: Request, dependencies: Omit<typeof agentApiDependencies, "session"> & { session(request: Request): Promise<unknown> } = agentApiDependencies) {
+export async function handleAgentRequest(request: Request, dependencies: Omit<typeof agentApiDependencies, "session" | "knowledge"> & { knowledge?: typeof createPublicSkillKnowledgeService; session(request: Request): Promise<unknown> } = agentApiDependencies) {
   const requestId = createRequestId(); const startedAt = performance.now();
   const noStore = (response: Response) => { response.headers.set("Cache-Control", "no-store"); return response; };
   try {
@@ -42,7 +44,7 @@ export async function handleAgentRequest(request: Request, dependencies: Omit<ty
       sources: [], tools: [], limitations: ["BLOCKED_PRIVACY"], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } }, requestId));
     if (!config.fakeAllowed) assertBusinessText(message);
     const preview = config.fakeAllowed ? syntheticPreviewAccess({ actor, session, snapshot, message, ip: requestClientIp(request) }) : undefined;
-    const result = await runReadOnlyAgent({ message, context: { ...dependencies.services(), actor, snapshot, preview }, provider: config.fakeAllowed ? dependencies.provider() : dependencies.externalProvider(),
+    const result = await runReadOnlyAgent({ message, context: { ...dependencies.services(), actor, snapshot, preview, knowledge: config.fakeAllowed ? dependencies.knowledge?.() : undefined }, provider: config.fakeAllowed ? dependencies.provider() : dependencies.externalProvider(),
       egress, signal: request.signal });
     return noStore(successResponse(result, requestId));
   } catch (error) {

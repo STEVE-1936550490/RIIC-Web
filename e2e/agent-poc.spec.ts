@@ -54,6 +54,35 @@ test("production flag disabled hides panel and rejects API", async ({ page, requ
   const response = await request.post("/api/agent", { data: { message: "summary", context: null } }); expect(response.status()).toBe(404);
 });
 
+test("panel interaction shows skill and manual provenance with versions, rejects arbitrary citation fields", async ({ page }) => {
+  await mockApis(page); await mockAnonymousWebsiteSession(page); await seedV4Session(page, planData);
+  const storageBefore = await page.goto("/").then(async () => { await expect(page.locator('[data-workbench-hydrated="true"]')).toBeVisible(); return page.evaluate(() => JSON.stringify(localStorage)); });
+  let forged = false;
+  await page.route("**/api/agent", async route => {
+    const response = responseFor(route);
+    response.data.answer = "系统技能数据：订单效率+7%；站点人工补充说明：离线测试说明。";
+    response.data.tools[0].name = "knowledge.get_skill_context";
+    response.data.sources = (["STRUCTURED_GAME_DATA", "PROJECT_MANUAL_ANNOTATION"] as const).map(sourceType => {
+      const structured = sourceType === "STRUCTURED_GAME_DATA";
+      const knowledge = { sourceType, sourceId: `${structured ? "skill" : "annotation"}:char_002_amiya:control_tra_spd_000`, operatorId: "char_002_amiya", operatorName: "阿米娅", skillId: "control_tra_spd_000", skillName: "合作协议",
+        version: structured ? "593aa9d5b9b87c27eea762994a376f579a6e9038" : null, revision: "a".repeat(64), sampledAt: "2026-09-18T00:00:00.000Z", updatedAt: structured ? null : "2026-09-05T00:00:00.000Z",
+        provenance: structured ? "arkntools/arknights-toolbox-data via RIIC-Web" as const : "RIIC-Web site-maintained manual annotation" as const };
+      return { type: "skill_knowledge", knowledge, contextRevision: null, planDiagnosticId: null, planId: null, sampledAt: knowledge.sampledAt, updatedAt: knowledge.updatedAt, ...(forged ? { url: "https://attacker.invalid" } : {}) };
+    });
+    await route.fulfill({ json: response });
+  });
+  await page.locator("[data-agent-open]").click(); const panel = page.locator("[data-agent-panel]");
+  await panel.getByLabel("问题", { exact: true }).fill("阿米娅的合作协议有没有站点补充说明？");
+  await panel.getByRole("button", { name: "发送", exact: true }).click();
+  const sources = panel.getByRole("list", { name: "来源" });
+  for (const fact of ["系统技能数据", "站点人工补充说明", "阿米娅", "合作协议", "arkntools/arknights-toolbox-data", "version: 593aa9", "revision:", "updatedAt: 2026-09-05", "sampledAt: 2026-09-18"]) await expect(sources).toContainText(fact);
+  await expect(sources.locator("a")).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(storageBefore);
+  forged = true; await panel.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(panel.getByRole("alert")).toBeVisible(); await expect(panel.locator("[data-agent-answer]")).toHaveCount(0);
+  await expect(panel.locator('a[href*="attacker"]')).toHaveCount(0);
+});
+
 test("three M0 scenarios render facts, planned/observed, candidates and deterministic comparison sources", async ({ page }) => {
   await mockApis(page); await mockAnonymousWebsiteSession(page); await seedV4Session(page, planData);
   await page.route("**/api/agent", async (route) => {

@@ -30,3 +30,14 @@ const cases: GoldenCase[] = [
   { id: "stale-context", message: "summary", tool: allowedTools[0], args: {}, facts: ["shiftCount: 2"], mode: "stale" },
 ];
 export const AGENT_GOLDEN_SET = cases.map((item) => ({ ...item, allowedTools, forbiddenTools, forbiddenBehaviors: ["write", "solve", "foreign-plan-disclosure", "raw-context-output", "external-business-egress"] }));
+// Existing public catalog IDs; annotations used by tests below are explicitly synthetic.
+export const KNOWLEDGE_GOLDEN_SET = [
+  { message: "阿米娅的合作协议具体是什么效果？", status: "ok", fact: "+7%", annotation: false },
+  { message: "阿米娅的合作协议有没有站点补充说明？", status: "ok", fact: "离线测试补充说明", annotation: true },
+  { message: "为什么这里建议阿米娅的合作协议？", status: "ok", fact: "不证明推荐原因", annotation: false },
+  { message: "What does skill control_tra_spd_000 of operator char_002_amiya do?", status: "ok", fact: "+7%", annotation: false },
+  { message: "Does skill control_tra_spd_000 of operator char_002_amiya have a site annotation?", status: "ok", fact: "absent", annotation: false },
+  { message: "阿米娅的基建技能具体是什么效果？", status: "failed", fact: "补充引用", annotation: false },
+  { message: "不存在的干员的合作协议具体是什么效果？", status: "failed", fact: "补充引用", annotation: false },
+  { message: "阿米娅的不存在的技能具体是什么效果？", status: "failed", fact: "补充引用", annotation: false },
+] as const;

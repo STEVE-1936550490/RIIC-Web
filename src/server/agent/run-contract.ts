@@ -1,3 +1,4 @@
+import { parseKnowledgeSource, type KnowledgeSource } from "./knowledge-contract.ts";
 import { parsePreviewResult, type PreviewResult } from "./preview-contract.ts";
 // Shared wire contract. No server secrets, SDK objects or business payloads.
 export const AGENT_RUN_LIMITS = Object.freeze({ steps: 5, calls: 6, toolMs: 5000, totalMs: 60000, resultBytes: 16384, observationBytes: 65536, tokens: 12000, answerChars: 3000 });
@@ -19,7 +20,8 @@ export function text(value: unknown, max: number): string {
   if (typeof value !== "string" || !value.trim() || value.length > max) throw new AgentRunError("AGENT_INVALID_INPUT");
   return value.trim();
 }
-export type AgentSource = { type: "current_context" | "saved_plan" | "observed_schedule" | "planning_preview"; contextRevision: string | null; planDiagnosticId: string | null; sampledAt: string | null; updatedAt: string | null; planId: string | null };
+type ContextAgentSource = { type: "current_context" | "saved_plan" | "observed_schedule" | "planning_preview"; contextRevision: string | null; planDiagnosticId: string | null; sampledAt: string | null; updatedAt: string | null; planId: string | null };
+export type AgentSource = ContextAgentSource | { type: "skill_knowledge"; contextRevision: null; planDiagnosticId: null; sampledAt: string; updatedAt: string | null; planId: null; knowledge: KnowledgeSource };
 export type ToolTrace = { name: string; step: number; status: string; latencyMs: number; code: string | null };
 export type AgentFinalResult = {
   preview?: PreviewResult;
@@ -40,7 +42,13 @@ export function parseAgentFinalResult(value: unknown): AgentFinalResult {
   const preview = r.preview === undefined ? undefined : parsePreviewResult(r.preview);
   if (preview && preview.currentRevision !== r.contextRevision) throw new AgentRunError("AGENT_INVALID_OUTPUT");
   return { ...(preview ? { preview } : {}), status: r.status, modelMode: r.modelMode, intent: null, answer: text(r.answer, 3000), runId: text(r.runId, 80), contextRevision: nullable(r.contextRevision, 80), error: nullable(r.error, 80),
-    sources: list(r.sources, 60).map((raw): AgentSource => { const s = exact(raw, ["type", "contextRevision", "planDiagnosticId", "sampledAt", "updatedAt", "planId"]);
+    sources: list(r.sources, 60).map((raw): AgentSource => { if (record(raw).type === "skill_knowledge") {
+      const s = exact(raw, ["type", "contextRevision", "planDiagnosticId", "sampledAt", "updatedAt", "planId", "knowledge"]);
+      const knowledge = parseKnowledgeSource(s.knowledge);
+      if (s.contextRevision !== null || s.planDiagnosticId !== null || s.planId !== null || s.sampledAt !== knowledge.sampledAt || s.updatedAt !== knowledge.updatedAt) throw new AgentRunError("AGENT_INVALID_OUTPUT");
+      return { type: "skill_knowledge", contextRevision: null, planDiagnosticId: null, planId: null, sampledAt: knowledge.sampledAt, updatedAt: knowledge.updatedAt, knowledge };
+    }
+    const s = exact(raw, ["type", "contextRevision", "planDiagnosticId", "sampledAt", "updatedAt", "planId"]);
       if (s.type !== "current_context" && s.type !== "saved_plan" && s.type !== "observed_schedule" && s.type !== "planning_preview") throw new AgentRunError("AGENT_INVALID_OUTPUT");
       return { type: s.type, contextRevision: nullable(s.contextRevision, 80), planDiagnosticId: nullable(s.planDiagnosticId, 80), sampledAt: nullable(s.sampledAt, 40), updatedAt: nullable(s.updatedAt, 40), planId: nullable(s.planId, 128) }; }),
     limitations: list(r.limitations, 16).map((s) => text(s, 128)),

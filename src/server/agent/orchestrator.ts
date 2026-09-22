@@ -1,3 +1,4 @@
+import { requestedSkillContext, skillContextAnswer, type SkillContextResult } from "./knowledge-contract.ts";
 import { requestedPreview } from "./preview-contract.ts";
 import { bindBusinessRun, assertBusinessRunSend } from "./business-egress.ts";
 import { createModelPayloadBoundary } from "./model-payload-boundary.ts";
@@ -28,6 +29,7 @@ async function bounded<T>(work: (signal: AbortSignal) => Promise<T>, signal: Abo
 }
 function sourcesFor(result: ToolResult): AgentSource[] {
   const source = result.source;
+  if (source.type === "skill_knowledge") return source.entries.map(knowledge => ({ type: "skill_knowledge", contextRevision: null, planDiagnosticId: null, planId: null, sampledAt: knowledge.sampledAt, updatedAt: knowledge.updatedAt, knowledge }));
   if (source.type === "planning_preview") return [{ type: "planning_preview", contextRevision: source.contextRevision, sampledAt: source.sampledAt, planDiagnosticId: null, updatedAt: null, planId: null }];
   if (source.type === "current_context") {
     const sources: AgentSource[] = [{ type: "current_context", contextRevision: source.contextRevision, planDiagnosticId: source.planDiagnosticId, sampledAt: source.sampledAt, updatedAt: null, planId: null }];
@@ -60,11 +62,13 @@ export async function runReadOnlyAgent(input: {
     const context = { ...input.context, snapshot: validatedSnapshot(input.context.snapshot) };
     result.contextRevision = context.snapshot?.contextRevision ?? null;
     if (!isIssuedActor(context.actor)) throw new AgentRunError("AGENT_ACTOR_REQUIRED");
+    if (input.provider.kind !== "fake") context.knowledge = undefined;
     const business = input.provider.kind === "external" && input.egress.classification === "user_business_context";
     if (input.provider.kind !== "fake" || requestedPreview(message) !== context.preview?.rotationProfile) context.preview = undefined;
     if (business) bindBusinessRun(input.egress, context.actor.userId, result.runId);
     const boundary = createModelPayloadBoundary();
     const observations: LoopObservation[] = [];
+    let knowledgeResult: SkillContextResult | undefined;
     const repeated = new Set<string>(); const callIds = new Set<string>(); let failed = false;
     for (let step = 1; step <= LIMIT.steps; step++) {
       if (signal.aborted) throw new AgentRunError("AGENT_ABORTED");
@@ -91,10 +95,13 @@ export async function runReadOnlyAgent(input: {
       try { decision = parseLoopDecision(response.decision); } catch { throw new AgentRunError("AGENT_MODEL_INVALID_OUTPUT"); }
       if (decision.type === "final") {
         if (context.preview && result.preview?.status !== "ok") failed = true;
+        if (context.knowledge && requestedSkillContext(message) && knowledgeResult?.status !== "ok") failed = true;
         result.status = failed ? "failed" : "ok";
         result.error = failed ? "AGENT_TOOL_FAILURE" : null;
         // A provider cannot turn a failed/ambiguous/missing tool observation into a success claim.
-        result.answer = failed ? "工具未能完整回答问题，请查看工具状态并补充引用或重试。 / Tool results are incomplete; clarify references or retry." : decision.answer;
+        result.answer = failed ? "工具未能完整回答问题，请查看工具状态并补充引用或重试。 / Tool results are incomplete; clarify references or retry." : knowledgeResult ? skillContextAnswer(knowledgeResult) : decision.answer;
+        // The single-skill extract describes only this observation, not earlier queried skills/revisions.
+        if (!failed && knowledgeResult) result.sources = sourcesFor(knowledgeResult);
         break;
       }
       if (result.tools.length + decision.calls.length > LIMIT.calls) throw new AgentRunError("AGENT_TOOL_CALL_LIMIT");
@@ -110,6 +117,7 @@ export async function runReadOnlyAgent(input: {
           const value = await bounded((toolSignal) => executeRegisteredTool(executionCall.name, executionCall.arguments, { ...context, signal: toolSignal }), signal, Math.min(toolMs, remaining()), "AGENT_TOOL_TIMEOUT");
           if (new TextEncoder().encode(JSON.stringify(value)).length > LIMIT.resultBytes) throw new AgentRunError("AGENT_RESULT_LIMIT");
           observation = value; status = value.status;
+          if (call.name === "knowledge.get_skill_context" && "annotation" in value) knowledgeResult = value;
           code = "issue" in value && value.issue ? value.issue.code : null;
           if (call.name === "plan.preview" && "semantics" in value) result.preview = value;
           if (status === "ok" || status === "empty") {

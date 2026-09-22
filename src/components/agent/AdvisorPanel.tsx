@@ -93,7 +93,17 @@ export default function AdvisorPanel(props: { plan: PublicPlanData | null; layou
               {response.preview.issue && <p role="alert">{response.preview.issue.code}</p>}
             </section>}
             <ul aria-label={t("tools")}>{response.tools.map((tool, i) => <li className="rounded border p-2" key={i}>{tool.name}: {tool.status} {tool.code} ({tool.latencyMs} ms)</li>)}</ul>
-            <ul aria-label={t("sources")}>{response.sources.map((source, i) => <li className="break-all text-xs" key={i}>{source.type} · {source.contextRevision} · {source.planDiagnosticId} · {source.planId} · {source.sampledAt ? `sampledAt: ${source.sampledAt}` : `updatedAt: ${source.updatedAt}`}</li>)}</ul>
+            <ul aria-label={t("sources")}>{response.sources.map((source, i) => <li className="break-all text-xs" key={i}>
+              {source.type === "skill_knowledge" ? <>
+                {t(source.knowledge.sourceType === "STRUCTURED_GAME_DATA" ? "structuredSkillSource" : "manualSkillSource")}
+                {" · "}{source.knowledge.operatorName} [{source.knowledge.operatorId}]
+                {" · "}{source.knowledge.skillName} [{source.knowledge.skillId}]
+                {" · "}{source.knowledge.provenance}
+                {source.knowledge.version && <span> · version: {source.knowledge.version}</span>}
+                <span> · revision: {source.knowledge.revision} · sampledAt: {source.sampledAt}</span>
+                {source.updatedAt && <span> · updatedAt: {source.updatedAt}</span>}
+              </> : <>{source.type} · {source.contextRevision} · {source.planDiagnosticId} · {source.planId} · {source.sampledAt ? `sampledAt: ${source.sampledAt}` : `updatedAt: ${source.updatedAt}`}</>}
+            </li>)}</ul>
             <ul aria-label={t("limitations")}>{response.limitations.map((item) => <li className="text-xs" key={item}>{item}</li>)}</ul>
             <p className="break-all text-xs">runId: {response.runId}</p>
           </div>}

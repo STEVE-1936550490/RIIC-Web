@@ -1,3 +1,4 @@
+import { SKILL_CONTEXT_TOOL, parseSkillContextInput, executeSkillContext } from "./tools/skill-context.ts";
 import { PLAN_PREVIEW_TOOL, parsePreviewInput, executePlanPreview } from "./tools/plan-preview.ts";
 import type { AgentExecutionContext } from "./execution-context.ts";
 import { canUseTool, requireToolPolicy } from "./policy.ts";
@@ -7,10 +8,11 @@ import { CURRENT_PLAN_ROOM_DETAIL_TOOL, executeCurrentPlanRoomDetail, parseCurre
 import { SAVED_PLAN_LIST_TOOL, executeSavedPlanList, parseSavedPlanListInput } from "./tools/saved-plan-list.ts";
 import { SAVED_PLAN_COMPARE_TOOL, executeSavedPlanCompare, parseSavedPlanCompareInput } from "./tools/saved-plan-compare.ts";
 
-export type ToolResult = Awaited<ReturnType<typeof executePlanPreview>> | ReturnType<typeof executeCurrentPlanSummary> | ReturnType<typeof executeCurrentPlanRoomDetail> | Awaited<ReturnType<typeof executeSavedPlanList>> | Awaited<ReturnType<typeof executeSavedPlanCompare>>;
+export type ToolResult = Awaited<ReturnType<typeof executeSkillContext>> | Awaited<ReturnType<typeof executePlanPreview>> | ReturnType<typeof executeCurrentPlanSummary> | ReturnType<typeof executeCurrentPlanRoomDetail> | Awaited<ReturnType<typeof executeSavedPlanList>> | Awaited<ReturnType<typeof executeSavedPlanCompare>>;
 type Descriptor = { name: string; description: string; effect: "read" | "compute"; inputSchema: Readonly<Record<string, unknown>>;
   parse(input: unknown): unknown; execute(input: unknown, context: AgentExecutionContext): ToolResult | Promise<ToolResult> };
 const registry: readonly Descriptor[] = Object.freeze([
+  { ...SKILL_CONTEXT_TOOL, parse: parseSkillContextInput, execute: executeSkillContext },
   { ...PLAN_PREVIEW_TOOL, parse: parsePreviewInput, execute: executePlanPreview },
   { ...CURRENT_PLAN_SUMMARY_TOOL, parse: parseCurrentPlanSummaryInput, execute: (input, ctx) => executeCurrentPlanSummary(input, { snapshot: ctx.snapshot }) },
   { ...CURRENT_PLAN_ROOM_DETAIL_TOOL, parse: parseCurrentPlanRoomDetailInput, execute: (input, ctx) => executeCurrentPlanRoomDetail(input, { snapshot: ctx.snapshot }) },

@@ -1,12 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { syntheticExecution, syntheticEgress, call } from "./m3-test-support.ts";
-import { AGENT_GOLDEN_SET } from "./golden-cases.ts";
+import { AGENT_GOLDEN_SET, KNOWLEDGE_GOLDEN_SET } from "./golden-cases.ts";
 import { LocalDemoProvider, ScriptedLoopProvider } from "./fake-loop-provider.ts";
 import { parseLoopDecision, type LoopCall, type LoopProvider } from "./loop-provider.ts";
 import { isAgentResultCurrent } from "./run-contract.ts";
 const { runReadOnlyAgent } = await import("./orchestrator.ts");
 const { visibleTools } = await import("./tool-registry.ts");
+for (const item of KNOWLEDGE_GOLDEN_SET) test(`golden M5: ${item.message}`, async () => {
+  const { createSkillKnowledgeService } = await import("../skill-knowledge-service.ts");
+  const context = { ...syntheticExecution(), knowledge: createSkillKnowledgeService({ readAnnotation: async () => item.annotation ? { note: "离线测试补充说明", updatedAt: "2026-09-05T00:00:00.000Z" } : null }) };
+  const result = await runReadOnlyAgent({ context, message: item.message, provider: new LocalDemoProvider(), egress: syntheticEgress });
+  assert.equal(result.status, item.status); assert.deepEqual(result.tools.map(t => t.name), ["knowledge.get_skill_context"]);
+  assert.ok(result.answer.includes(item.fact));
+  assert.equal(result.sources.length, item.status === "failed" ? 0 : item.annotation ? 2 : 1);
+  if (!item.annotation) assert.ok(!result.answer.includes("离线测试补充说明"));
+});
 for (const item of AGENT_GOLDEN_SET) test(`golden: ${item.id}`, async () => {
   const context = syntheticExecution();
   if (item.mode === "ambiguous") {

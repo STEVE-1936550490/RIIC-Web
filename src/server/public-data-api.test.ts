@@ -84,8 +84,9 @@ test("skill annotation handlers cache sanitized data and invalidate create, upda
   await context.mock.module(new URL("../operatorPortraits.ts", import.meta.url), {
     namedExports: { OPERATOR_CATALOG: [{ id: "operator", buildingSkills: [{ id: "skill" }] }] },
   });
+  let adminChecks = 0;
   await context.mock.module(new URL("./auth/authorization.ts", import.meta.url), {
-    namedExports: { requireWebsiteAdmin: async () => ({ session: { user: { id: "admin" } } }) },
+    namedExports: { requireWebsiteAdmin: async () => { adminChecks++; return { session: { user: { id: "admin" } } }; } },
   });
   let limited = false;
   await context.mock.module(new URL("./api-contract.ts", import.meta.url), {
@@ -105,6 +106,7 @@ test("skill annotation handlers cache sanitized data and invalidate create, upda
     id: "annotation", operatorId: "operator", skillId: "skill", note: "initial",
     createdByUserId: "private-admin", updatedByUserId: "private-admin",
     createdAt: new Date(0), updatedAt: new Date(0),
+    futureInternalField: "private-future",
   };
   let deleted = false;
   const db = {
@@ -124,6 +126,11 @@ test("skill annotation handlers cache sanitized data and invalidate create, upda
   const body = await first.json();
   assert.deepEqual(body, await second.json());
   assert.deepEqual(Object.keys(body.data.annotations[0]).sort(), ["id", "note", "operatorId", "skillId", "updatedAt"]);
+  // M5's exact SELECT relies on this existing all-rows-public contract. No Session,
+  // draft/published field, owner filter or admin identity is required for these reads.
+  assert.equal(adminChecks, 0);
+  assert.equal(body.data.annotations[0].note, "initial");
+  assert.doesNotMatch(JSON.stringify(body), /private-admin|private-future|createdAt|createdByUserId|updatedByUserId/);
   const created = await api.handleCreateAdminSkillAnnotation(request("POST", { operatorId: "operator", skillId: "skill", note: "created" }));
   assert.equal(created.status, 201);
   assert.match(created.headers.get("cache-control")!, /private, no-store/);

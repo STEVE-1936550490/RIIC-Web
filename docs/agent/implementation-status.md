@@ -1,5 +1,281 @@
 # Agent Implementation Status
 
+## M5 Phase A — final local engineering closeout, 2026-09-22
+
+The user-side reviewer confirmed all M5 engineering completion criteria and
+authorized this final local documentation checkpoint. This section supersedes
+the candidate statuses below, which remain historical evidence. Only the two
+M5 documents changed; implementation, tests, UI and pinned assets are unchanged.
+
+| Final current state | Result |
+| --- | --- |
+| Branch | `diy/agent-m0-m3` |
+| DIY_LOCAL_HEAD / DIY_REMOTE_HEAD | `07390a1462b91e1b007410b4f669f9b8bbd9b499` / same; fresh read |
+| UPSTREAM_MAIN_HEAD | `95ed0c699b50befbef90d83314bccbd6915e26bd`; fresh read |
+| UPSTREAM_DRIFT_M5_IMPACT | NONE; eight new Live Activity UI/test/dependency paths since the previous audit; no M5 data/auth/Agent change; nothing synced |
+| M5_STATUS | COMPLETE |
+| M5_ENGINEERING_CLOSEOUT | COMPLETE |
+| M4_STATUS / M6_STATUS / M7_STATUS | COMPLETE / NOT_STARTED / NOT_STARTED |
+| WORKTREE_CANDIDATE_PRESERVED | YES; 22 files; 0 staged, 16 modified, 6 untracked |
+| RECOVERY_HASH_MATCH / RUNTIME_TEST_UI_HASH_UNCHANGED | 22/22 / YES |
+| FINAL_REVIEW / HIGH_OPEN / MEDIUM_OPEN / LOW_OPEN | Accepted PASS / 0 / 0 / 0; no new implementation review or fixes |
+| STRUCTURED_GAME_DATA_SOURCE | CURRENT_DIY_BUILD_PINNED_CATALOG |
+| STRUCTURED_GAME_DATA_VERSION | `593aa9d5b9b87c27eea762994a376f579a6e9038` |
+| SKILL_ANNOTATION | PUBLIC_EXISTING_RECORDS / READ_ONLY |
+| TRAINING_ADVICE_KNOWLEDGE | BLOCKED_PRIVATE_ARTIFACT |
+| RELEASE_NOTES | AUDITED_AVAILABLE / NOT_IN_M5_V1 |
+| EXTERNAL_BUSINESS_KNOWLEDGE_TOOL | UNAVAILABLE |
+| REAL_BUSINESS_EGRESS_RELEASE / REAL_USER_CONTEXT_TO_EXTERNAL_MODEL | BLOCKED_PROVIDER_POLICY / BLOCKED_PROVIDER_POLICY |
+| TARGETED_TESTS / AGENT / GOLDEN / API_CONTRACT | Verified previous-stage PASS 42/42 / 356/356 / 42/42 / 76/76; NOT rerun this closeout |
+| TSC / CHECK | Verified previous-stage PASS / PASS; NOT rerun this closeout |
+| DIFF_CHECK | Fresh PASS after final documentation update |
+| BUILD / STANDALONE / E2E | VERIFIED_EXISTING_CANDIDATE_EVIDENCE / same / same, E2E 7/7; NOT rerun |
+| REAL_POSTGRES_VALIDATION / PRODUCTION_ANNOTATION_VALIDATION / REAL_MODEL_VALIDATION | NOT_RUN / NOT_RUN / NOT_RUN |
+| MODEL_HTTP_REQUESTS_THIS_ROUND / DB_BUSINESS_WRITES / SOLVER_INVOCATIONS | 0 / 0 / 0 |
+| COMMIT / PUSH / DEPLOY | NOT_PERFORMED / NOT_PERFORMED / NOT_PERFORMED |
+
+All criteria are satisfied: deterministic skill lookup; annotation available,
+absent and unavailable handling; missing/ambiguous fail closed; zero admin/DB
+private-field leakage; fake/offline automatic tool selection and observation
+refill; grounded final answer; server-authored provenance; separate manual
+annotation attribution; blocked external business visibility; zero business writes
+and solver calls; passing M0/M4 regression. No vector RAG is needed for this use case.
+
+The completed chain is existing structured building-skill data + public manual
+annotation → deterministic Knowledge service → `knowledge.get_skill_context` →
+existing Agent Tool Loop → server-authored provenance → grounded answer. COMPLETE
+does not claim current/latest game assets, Hypergryph-official annotation, private
+training advice or release-note integration, generic document RAG, business egress
+approval, production annotation acceptance or real-model M5 acceptance. Existing
+read-only policy and budgets remain unchanged. See the [M5 design and retained
+limitations](m5-authoritative-knowledge.md).
+
+Final evidence: `/tmp/riic-m5-final-closeout-20260922/`; previous acceptance:
+`/tmp/riic-m5-revalidation-20260918/final-evidence.json`. Both previous evidence
+hash manifests and all 1,875 source entries in `/tmp/riic-agent-closeout-CS8r1q`
+verify. Runtime/test/UI/configuration are identical to that build; only the two
+evidence documents differ. The final candidate SHA-256 manifest includes all
+22 files. Evidence is outside Git. Stop here; await separate explicit authorization
+for the final Commit/Push checkpoint.
+
+## M5 Phase A — repeat final-review revalidation (historical), 2026-09-18
+
+This was the latest candidate execution record before final closeout. The preceding final review below is retained
+as historical evidence, including its three fixes; none is claimed as a new fix.
+This round only updates these two M5 evidence documents. No new review findings
+or runtime/test/UI changes were necessary.
+
+| Latest state | Result |
+| --- | --- |
+| Branch | `diy/agent-m0-m3` |
+| DIY_REMOTE_HEAD / DIY_LOCAL_HEAD | `07390a1462b91e1b007410b4f669f9b8bbd9b499` / same; fresh lookup |
+| UPSTREAM_MAIN_HEAD | `9ab547fdfff60ec5031b557e24fd9b98e515a119`; fresh lookup |
+| WORKTREE_CANDIDATE_PRESERVED / RECOVERY_HASH_MATCH | YES; 0 staged, 16 modified, 6 untracked; canonical hash file exists, 22/22 match |
+| UPSTREAM_DRIFT_M5_IMPACT | NONE; original-to-fresh 13-path password-policy delta re-read; no Session/Actor or knowledge semantic change |
+| M4_STATUS / M6_STATUS | COMPLETE / NOT_STARTED |
+| M5_STATUS | IN_PROGRESS / CLOSEOUT_READY_CANDIDATE |
+| M5_CLOSEOUT_READY | YES; formal closeout remains the user's decision |
+| FINAL_REVIEW / HIGH_OPEN / MEDIUM_OPEN / LOW_OPEN | PASS; no new findings / 0 / 0 / 0 |
+| TARGETED_TESTS / AGENT / GOLDEN / API_CONTRACT | Fresh PASS 42/42 / 356/356 / 42/42 / 76/76 |
+| TSC / CHECK / DIFF_CHECK | Fresh PASS / PASS / PASS |
+| BUILD / STANDALONE / E2E | VERIFIED_EXISTING_CANDIDATE_EVIDENCE for all three; NOT rerun this round |
+| MODEL_HTTP_REQUESTS_THIS_ROUND / DB_BUSINESS_WRITES / SOLVER_INVOCATIONS | 0 / 0 / 0 |
+| REAL_POSTGRES / PRODUCTION_ANNOTATION / REAL_MODEL_VALIDATION | NOT_RUN / NOT_RUN / NOT_RUN |
+| REAL_BUSINESS_EGRESS_RELEASE / REAL_USER_CONTEXT_TO_EXTERNAL_MODEL | BLOCKED_PROVIDER_POLICY / BLOCKED_PROVIDER_POLICY |
+| COMMIT / PUSH / DEPLOY | NOT_PERFORMED / NOT_PERFORMED / NOT_PERFORMED |
+
+Evidence: `/tmp/riic-m5-revalidation-20260918/`. The preceding review's 22 hashed
+evidence files verify; all 1,875 entries in the isolated copy's source manifest
+verify. Current runtime/test/UI/configuration match that manifest, with only these
+two Agent evidence documents differing. The preserved build log confirms webpack
+and standalone preparation; browser log confirms 7/7. This meets the user-approved
+reuse conditions; no historical Build/E2E PASS is described as a new execution.
+
+Code revalidation confirms architecture B: exact pair-bound SELECT of note/update
+time, all-existing-rows-public semantics, no draft/private field or second
+visibility policy. Actor checks, bounded exact DTO, server-authored sources,
+missing/ambiguous failure, absent/unavailable separation, M0/M4 routing and fixed
+budgets remain intact. Catalog provenance remains **current DIY build pinned
+structured game data**, commit `593aa9d5b9b87c27eea762994a376f579a6e9038`;
+M5 does not auto-sync upstream assets. Knowledge schemas/observations remain
+unavailable to external business providers despite consent. Training knowledge
+remains BLOCKED_PRIVATE_ARTIFACT; release notes AUDITED_AVAILABLE / NOT_IN_M5_V1.
+No real PostgreSQL, production annotation, private artifact or real model was
+accessed. No Workspace/saved-plan/annotation writes, Skland refresh, solver,
+arbitrary external HTTP or product shell Tool occurred. Stop for user review.
+
+## M5 Phase A — preceding final candidate review (historical), 2026-09-18
+
+This review supersedes the initial M5 candidate snapshot below. It preserves the
+uncommitted candidate and does not authorize publication or a milestone closeout.
+
+| Current review state | Result |
+| --- | --- |
+| DIY_REMOTE_HEAD / DIY_LOCAL_HEAD | `07390a1462b91e1b007410b4f669f9b8bbd9b499` / same, fresh remote lookup |
+| UPSTREAM_MAIN_HEAD | `9ab547fdfff60ec5031b557e24fd9b98e515a119`, fresh read-only revalidation |
+| WORKTREE_CANDIDATE_PRESERVED | YES — recovery: 0 staged, 15 modified, 6 untracked; original 21/21 hashes matched and were backed up |
+| UPSTREAM_DRIFT_M5_IMPACT | NONE — 13 password-policy/UI/translation/test paths; no Session/Actor, annotation, catalog, runtime knowledge or Agent semantic change |
+| M4_STATUS / M6_STATUS | COMPLETE / NOT_STARTED |
+| M5_STATUS | IN_PROGRESS / CLOSEOUT_READY_CANDIDATE |
+| M5_CLOSEOUT_READY | YES — offline engineering criteria met; formal closeout remains the user's decision |
+| FINAL_REVIEW / HIGH_OPEN / MEDIUM_OPEN / LOW_OPEN | Code review complete: three MEDIUM fixed with regressions; 0 / 0 / 0 open |
+| TARGETED_TESTS | Fresh PASS 42/42; public annotation API regression fresh PASS 2/2 |
+| AGENT / GOLDEN / API_CONTRACT | Fresh PASS 356/356 / 42/42 / 76/76 |
+| TSC / CHECK | Fresh PASS / PASS |
+| DIFF_CHECK | Fresh PASS, including final evidence-only documentation |
+| BUILD / STANDALONE / E2E | Fresh PASS / PASS / 7/7, no skips; isolated webpack build, no historical substitution |
+| REAL_BUSINESS_EGRESS_RELEASE / REAL_USER_CONTEXT_TO_EXTERNAL_MODEL | BLOCKED_PROVIDER_POLICY / BLOCKED_PROVIDER_POLICY |
+| EXTERNAL_BUSINESS_TOOL_VISIBILITY | UNAVAILABLE — no Knowledge schema or observation in external business payload |
+| TRAINING_ADVICE_KNOWLEDGE | BLOCKED_PRIVATE_ARTIFACT — fresh upstream still proves only required filename/private runtime dependency |
+| RELEASE_NOTES | AUDITED_AVAILABLE / NOT_IN_M5_V1 |
+| DB_BUSINESS_WRITES / SOLVER_INVOCATIONS / MODEL_HTTP_REQUESTS_THIS_ROUND | 0 / 0 / 0 |
+| REAL_POSTGRES / PRODUCTION_ANNOTATION / REAL_MODEL_VALIDATION | NOT_RUN / NOT_RUN / NOT_RUN |
+| COMMIT / PUSH / DEPLOY | NOT_PERFORMED / NOT_PERFORMED / NOT_PERFORMED |
+
+Fresh review findings (all reproduced before fixing):
+
+- MEDIUM: request projection accepted an unclassified observation with null
+  result. Check membership in the existing four-tool classification map before
+  projecting every observation, including null. No whitelist expansion.
+- MEDIUM: a multi-call single-skill answer could retain earlier skill/revision
+  sources. Final sources now match only the validated observation used by the
+  deterministic answer.
+- MEDIUM: offline knowledge grammar could intercept an explicit saved-plan list
+  whose title resembled a knowledge question. Explicit M0/M4 commands keep their
+  arguments; bilingual regression tests verify existing tool selection.
+
+Annotation read architecture remains **B, exact parameter-bound SELECT** of
+note/updatedAt for operatorId + skillId, LIMIT 1. Both it and the existing public
+GET use the existing all-rows-public semantics; there is no additional publishing
+or ownership rule. The schema has no draft/private/published state. Tests require
+re-audit on schema changes, check public GET requires no admin identity, and
+exclude DB row id, createdAt, creator/editor and future fields from observation
+refill, final output and sources. Public global notes are readable by different
+issued actors; this is existing public access, not cross-user private disclosure.
+
+Structured facts are **current DIY build pinned structured game data** from
+arkntools commit `593aa9d5b9b87c27eea762994a376f579a6e9038`. Fresh upstream still
+pins `302105b1404bd488c4700d063da9dcf3661a94f0`. M5 does not auto-sync upstream
+or game assets and does not claim latest/official data. Sources expose the actual
+installed commit and deterministic projected-content revision. Project manual
+annotation remains separately labeled, with no precedence or official attribution.
+Missing/ambiguous/failed tools cannot become grounded success; absent and read
+unavailable are distinct. The latter can accompany separately confirmed catalog
+facts but never a confirmed note. Final source metadata is server-authored.
+
+M4 budgets and its only Agent Loop remain unchanged: HTTP 15000 ms, run 60000 ms,
+tool 5000 ms, five model steps, six calls, 12000 reported tokens, zero retries.
+Fake/offline knowledge is available; external capability stripping and M3.6
+classification rejection remain effective even with simulated Provider approval
+and consent. Historical GLM tool-calling PASS grants no new egress permission.
+Workspace, saved-plan and annotation business writes, production DB mutations,
+solver, Skland refresh, arbitrary external HTTP and shell tools were not performed.
+Existing Agent audit/cache bookkeeping is not a business mutation.
+
+Evidence for this review is under `/tmp/riic-m5-review-20260918/`; original hashes
+and candidate copies are retained separately there. Previous `/tmp/riic-m5-evidence/`
+logs and the prior build manifest were verified on recovery, but runtime/test fixes
+require fresh gates. The canonical candidate hashes are refreshed after edits.
+No real PostgreSQL execution, production annotation read, private runtime artifact
+or external model quality is validated. This is offline engineering acceptance;
+user review still decides formal M5 closeout. No generic RAG or later milestone
+work is necessary or started.
+
+Fresh build copy: `/tmp/riic-agent-closeout-CS8r1q`. Its complete public source
+manifest matches the candidate except these two evidence-only Agent documents;
+all runtime, tests, UI, configuration and fixture files match. Standalone server,
+public and static assets exist and its localhost runtime passed mock browser
+tests. Review changed seven files (three runtime, two tests, two documents);
+the full preserved M5 candidate now has 22 files, all unstaged. Final hashes are
+recorded in both the original canonical evidence directory and this review's
+directory. No commit, push or deployment occurred.
+
+## M5 Phase A — initial candidate evidence (historical), 2026-09-18
+
+This historical section superseded earlier M5 NOT_STARTED / next-task statements.
+The initial task authorized only M5 Phase A implementation and offline validation, explicitly
+excluding Commit, Push, Merge, Deploy, M6, production DB changes, real solver and
+new real model requests. Existing M4 code and safety boundaries remain.
+
+| Current state | Result |
+| --- | --- |
+| DIY_REMOTE_HEAD / DIY_LOCAL_HEAD | `07390a1462b91e1b007410b4f669f9b8bbd9b499` / same, initial worktree clean |
+| UPSTREAM_MAIN_HEAD | `7665daf522aa89eaf2a7cd5523ac4c70093530ef` — freshly resolved, read-only audit |
+| M4_STATUS | COMPLETE |
+| M5_STATUS | IN_PROGRESS / AUTHORITATIVE_KNOWLEDGE_CANDIDATE |
+| M6_STATUS | NOT_STARTED |
+| GLM53_TOOL_CALLING_CAPABILITY / FUNCTION_TOOL_LOOP | Historical PASS / PASS; no new real acceptance |
+| NORMAL_AGENT_TOTAL_MS / MODEL_HTTP_TIMEOUT_MS / TOOL_TIMEOUT_MS | 60000 / 15000 / 5000 — unchanged |
+| MODEL_STEPS / TOOL_CALLS / REPORTED_TOKEN_LIMIT / MAX_RETRIES | 5 / 6 / 12000 / 0 — unchanged |
+| IMPLEMENTED_KNOWLEDGE_TOOL | `knowledge.get_skill_context`, read, existing Loop/Registry/Policy |
+| STRUCTURED_SKILL_DATA | Existing DIY arkntools catalog, exact stable-ID/name resolution; available offline |
+| SKILL_ANNOTATION | Existing publicly readable rows; note/updatedAt-only SELECT and whitelist DTO; synthetic tests only |
+| TRAINING_ADVICE_KNOWLEDGE | BLOCKED_PRIVATE_ARTIFACT — public filename metadata only; no content/schema/license verified |
+| RELEASE_NOTES | Audited published API/storage; not integrated in Phase A |
+| EXTERNAL_BUSINESS_TOOL_VISIBILITY | UNAVAILABLE — external providers lose capability, classification whitelist not expanded |
+| REAL_BUSINESS_EGRESS_RELEASE | BLOCKED_PROVIDER_POLICY |
+| TARGETED_TESTS / AGENT / GOLDEN / API_CONTRACT | PASS 31/31 / 345/345 / 42/42 / 76/76 |
+| TSC / CHECK / DIFF_CHECK | PASS / PASS / PASS |
+| BUILD / STANDALONE | PASS — isolated cloud-enabled webpack, standalone preparation and assets verified |
+| E2E | PASS 7/7 — mock browser cases, no skips |
+| MODEL_HTTP_REQUESTS_THIS_ROUND | 0 |
+| COMMIT / PUSH / DEPLOY | NOT_PERFORMED / NOT_PERFORMED / NOT_PERFORMED |
+
+See [M5 design, exact source inventory, provenance, Tool/DTO and limits](m5-authoritative-knowledge.md).
+The installed DIY structured-data source commit is `593aa9d5b9b87c27eea762994a376f579a6e9038`,
+while audited upstream is `302105b1404bd488c4700d063da9dcf3661a94f0`. No upstream sync or
+asset replacement occurred. Source version identifies the actual installed data,
+not the latest upstream commit; content revisions hash the projected facts.
+
+The existing annotation schema has no draft/published state. All its rows are
+already public through GET /api/skill-annotations. Agent uses only the same public
+note/update fields for an exact operator/skill pair; it does not expose row IDs,
+creator/editor IDs, audit metadata or future fields. A DB/read/schema failure is
+unavailable, not absent. Production annotations and DB contents were not accessed.
+
+Grounding uses validated observations, explicit absent/missing/ambiguous handling
+and separate structured/manual attribution. Final skill facts are rendered by
+code after the existing refill, so a fake provider cannot fabricate an annotation
+or citation. This is a bounded offline grammar and single-skill extract, not a real
+LLM quality evaluation, recommendation rationale, or official game statement.
+
+Offline logs are outside Git under `/tmp/riic-m5-evidence/`. Build uses the isolated
+copy `/tmp/riic-agent-closeout-M3QoKN`; its public source manifest matched the
+candidate before final evidence-only documentation updates. Tests use synthetic
+notes/Session/repositories and mock network boundaries, not a live DB or model.
+Initial sandbox Node/Build invocations failed on subprocess restrictions and were
+rerun with the same clean offline environment outside the sandbox. The first
+check stopped on a control-character-regex lint rule; the character-code fix and
+full rerun passed. No such failed attempt is counted as a passing gate.
+
+FINAL_REVIEW = PASS (inline candidate review); HIGH_OPEN = 0; MEDIUM_OPEN = 0.
+Two MEDIUM candidate gaps were fixed with failing tests before final gates:
+(1) payload-boundary descriptors/forced calls needed the existing classification
+map guard; (2) a recognized skill query could finalize without a tool observation.
+The first now fails closed without expanding the map; the second requires an ok
+knowledge result and deterministic grounded rendering. A test-only source scan
+initially mistook crypto hash `.update()` for DB mutation; the SQL-generation test
+checks the actual SELECT and absence of writes, while import checks guard private
+runtime/solver dependencies. No production behavior was changed for that false
+positive.
+
+| Final review focus | Evidence / conclusion |
+| --- | --- |
+| Cross-user/admin/private leakage | Session-issued actor checked twice; globally public row semantics verified at upstream SHA; SELECT only note/update time, exact pair binding; strict public projection rejects future output fields |
+| External egress | Capability stripped for all external providers; simulated approved-business test still cannot read it; API blocked path cannot construct knowledge; original four-tool map unchanged |
+| SQL/file/M6 | No arbitrary query/path/URL inputs; parameterized SELECT, no write/solver/runtime-data import; no schema or package changes |
+| Provenance/grounding | Actual installed version + content revision; manual versus structured remains separate; absent/unavailable differ; model text/citations cannot override knowledge facts |
+| UI/compatibility | Strict source parser, actual update/sample display; 7/7 mock E2E; existing M0/M4 Golden and complete offline checks pass |
+| Validation limits | No real DB contents, PostgreSQL integration, solver artifact, real provider or real business egress tested/released |
+
+All runtime/test/UI files match the build manifest; only the final evidence
+sections in the two Agent documents changed afterward. MODEL_HTTP_REQUESTS_THIS_ROUND
+remains 0; historical effective acceptance usage remains 46/100, unchanged.
+M5 remains an IN_PROGRESS candidate, not COMPLETE. Next minimum task is user review
+of this candidate; publication or any live acceptance requires separate authorization.
+Stop here; no automatic Commit/Push, deployment, generic RAG or M6.
+
+
 ## M4 post-closeout compatibility / real-model acceptance follow-up — 2026-09-15
 
 **M4 remains COMPLETE.** This follow-up closes compatibility diagnostics, controlled synthetic acceptance and the generic Agent run budget on the existing M4 work line. It introduces no new milestone. This section supersedes older current-state statements below; historical evidence and its limitations remain historical.
